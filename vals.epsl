@@ -220,9 +220,9 @@ Str#[$PodVal:val].stringify {
     } given val as PodError:error {
         return ["error:"] + [error.type];
     } given val as PodClearFn:fn {
-        return "function";
+        return "#function";
     } given val as PodBuiltinFn:builtin {
-        return "builtin function";
+        return "#builtin-function";
     } else {
         abort;
     };

@@ -475,9 +475,28 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
             under [[args[0]].get_string]
             in [stack];
     }
+    ("getfun") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Str:fn_name = [args[0]].get_string;
+        given lookup registered fn [fn_name] in [stack] as $PodFn:fn {
+            return fn;
+        } else {
+            return pod nil;
+        };
+    }
     ("repr") {
         require between [1] and [1] in [args];
         return PodStr [[args[0]].stringify];
+    }
+    ("par") {
+        require between [1] and [null] in [args];
+        return PodBuiltinFn ["#par", args];
+    }
+    ("#par") {
+        $PodVal:fn = builtin.data[0];
+        [$PodVal]:full_args = [[builtin.data].slice_from[1]] + [args];
+        return run [fn] with [full_args] in [stack];
     }
     {
         abort ["{} is not a builtin" % builtin.name];
@@ -518,7 +537,10 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "car",
         "cdr",
         "defun",
+        "getfun",
         "repr",
+        "par",
+        "#par",
     ];
     for Str:name in names {
         $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];

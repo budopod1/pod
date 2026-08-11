@@ -1,0 +1,5 @@
+defun +1 (par + 1)
+
+print (+1 2)
+
+print ((getfun +1) 3)
