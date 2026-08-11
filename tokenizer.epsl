@@ -72,8 +72,8 @@ ParsedStrEscape {
     TokenizationError?:error
 }
 
-Bool#[Byte:byte].is_whitespace {
-    return byte == ' ' || byte == '\n'
+Bool#[Byte:byte].is_ignored {
+    return byte == ' '
         || byte == '\r' || byte == '\t'
         || byte == '\v' || byte == '\f';
 }
@@ -221,6 +221,7 @@ TokenizationResult#tokenize [Str:input] {
     7 - int
     8 - float
     9 - symbol
+    10 - standard, was backslash
     */
     W:parse_state = 0;
 
@@ -233,7 +234,7 @@ TokenizationResult#tokenize [Str:input] {
         Byte:byte = input[index];
         switch parse_state
         (0) {
-            if [byte].is_whitespace {
+            if [byte].is_ignored {
 
             } elif byte == '"' {
                 parse_state = 1;
@@ -258,6 +259,8 @@ TokenizationResult#tokenize [Str:input] {
                 token_start = index;
                 index -= 1;
                 so_far = Str [];
+            } elif byte == '\\' {
+                parse_state = 10;
             } else {
                 [tokens.ids].append[byte];
                 [tokens.start_indexes].append[index];
@@ -382,6 +385,14 @@ TokenizationResult#tokenize [Str:input] {
                 [tokens.data].append[SymbolTokenData [so_far]];
             };
         }
+        (10) {
+            if byte != '\n' {
+                [errors].append[TokenizationError [
+                    "Unexpected character after '\\'", index
+                ]];
+            };
+            parse_state = 0;
+        }
         {abort;};
         index += 1;
     };
@@ -436,7 +447,9 @@ Tokens#[$TokenData?:data].read_group {
 }
 
 Str#token_id_to_name[W:id] {
-    if id < 32 || id == 127 {
+    if id == '\n' {
+        return "newline";
+    } elif id < 32 || id == 127 {
         return "unprintable ASCII character (code {})" % id;
     } elif id < 127 {
         return "'{}'" % id#Byte;

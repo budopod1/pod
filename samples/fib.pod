@@ -1,9 +1,16 @@
-set a = 0;
-set b = 1;
+# please do not place multiple lines on one line
+set a = 0; set b = 1
 
-forever {
-    set nxt = (+ $a $b);
-    print $nxt;
-    set a = $b;
-    set b = $nxt;
-};
+/*
+don't actually use this brace style,
+just do 'forever {'
+*/
+forever \
+{
+    set nxt = (
+        + $a $b
+    )
+    print $nxt
+    set a = $b
+    set b = $nxt
+}

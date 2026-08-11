@@ -8,7 +8,7 @@ $PodExpr?#parse expr [ParseState:state] {
     if [state].last_id == T_CURLY_GROUP {
         return parse fn body [[state].last_substate];
     } elif [state].last_id == T_PAREN_GROUP {
-        return parse S expr [[state].last_substate];
+        return parse S expr [[state].last_substate] outer: [false];
     } elif [state].last_id == T_INT {
         Z64:val = [[state].last_data#IntTokenData?].unwrap.val;
         return PodLiteralExpr [PodInt [val]];
@@ -32,10 +32,20 @@ $PodExpr?#parse expr [ParseState:state] {
     return null;
 }
 
-PodSExpr?#parse S expr [ParseState:state] {
+Bool#[W:id].terminates_line {
+    return id == '\n' || id == ';';
+}
+
+PodSExpr?#parse S expr [ParseState:state] outer: [Bool:outer] {
     [$PodArg]:args = [$PodArg] [];
-    while ![state].is_at_end && [state].cur_id != ';'
-        && [state].cur_id != '|' {
+    while ![state].is_at_end && [state].cur_id != '|' {
+        if outer && [[state].cur_id].terminates_line {
+            break;
+        };
+        if [state].cur_id == '\n' {
+            [state].consume;
+            continue;
+        };
         Bool:is_star = [state].cur_id == '*';
         if is_star {
             [state].consume; // eat the '*'
@@ -58,7 +68,7 @@ PodSExpr?#parse S expr [ParseState:state] {
     PodSExpr?:pipeline = null;
     if ![state].is_at_end && [state].cur_id == '|' {
         [state].consume; // eat the '|'
-        pipeline = parse S expr [state];
+        pipeline = parse S expr [state] outer: [outer];
         if [pipeline].is_null {
             return null;
         };
@@ -72,17 +82,37 @@ PodFnExpr?#parse fn body [ParseState:state] {
     };
     [PodSExpr]:code = [PodSExpr] [];
     while ![state].is_at_end {
-        given parse S expr [state] as PodSExpr:sexpr {
+        if [[state].cur_id].terminates_line {
+            [state].consume;
+            continue;
+        };
+
+        Bool:is_outer = true;
+        ParseState:sexpr_state = state;
+        if [state].cur_id == T_PAREN_GROUP {
+            [state].consume;
+            if [state].is_at_end || [[state].cur_id].terminates_line {
+                is_outer = false;
+                sexpr_state = [state].last_substate;
+            } else {
+                [state].unconsume;
+            };
+        };
+
+        given parse S expr [sexpr_state] outer: [is_outer]
+            as PodSExpr:sexpr {
             [code].append[sexpr];
         } else {
             return null;
         };
+
         if [state].is_at_end {
             break;
         };
-        if ![state].consume[';'] {
-            return null;
+        if ![[state].cur_id].terminates_line {
+            abort ["Expected token terminating line"];
         };
+        [state].consume; // eat the '\n' or ';'
     };
     return PodFnExpr [code];
 }
