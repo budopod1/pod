@@ -210,13 +210,11 @@ Str#[$PodVal:val].stringify {
         return "(cons {} {})" % [pair.car].stringify % [pair.cdr].stringify;
     } given val as PodArray:array {
         Str:elem_str = [""].clone;
-        for L:i enumerating array.elems {
-            if i {
-                [elem_str].append[' '];
-            };
-            [elem_str].extend[[array.elems[i]].stringify];
+        for $PodVal:elem in array.elems {
+            [elem_str].append[' '];
+            [elem_str].extend[[elem].stringify];
         };
-        return "(array {})" % elem_str;
+        return "(array{})" % elem_str;
     } given val as PodOpaque:opaque {
         return ["#"] + [opaque.name];
     } given val as PodError:error {

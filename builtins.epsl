@@ -351,14 +351,105 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
     }
     ("set") {
         require between [3] and [null] in [args];
-        if [args].len > 3 {
-            abort ["set with >3 args not implemented"];
+
+        if [args].len == 3 {
+            require [args[0]] matches [SymbolPattern []];
+            require [args[1]] matches [ExactSymbolPattern ["="]];
+            Str:name = [args[0]#PodSymbol?].unwrap.str;
+            if [name].at[-1] != '*' {
+                set var [name]
+                    in [[stack.frames].at[-1]]
+                    to [args[2]];
+                return pod nil;
+            };
         };
-        require [args[0]] matches [SymbolPattern []];
-        require [args[1]] matches [ExactSymbolPattern ["="]];
-        set var [[args[0]].get_string]
-            in [[stack.frames].at[-1]]
-            to [args[2]];
+
+        Str?:maybe_star_name = null;
+        [Str]:pre_star_names = [Str] [];
+        [Str]:post_star_names = [Str] [];
+        L:required_val_count = 0;
+        L:val_start_idx = 0;
+
+        for $PodVal:arg in args {
+            val_start_idx += 1;
+            require [arg] matches [SymbolPattern []];
+            Str:name = [arg#PodSymbol?].unwrap.str;
+            if [name] equals ["="] {
+                break;
+            } elif [name].len == 0 {
+                temp error msg: ["Cannot assign to empty symbol"];
+            } elif [name].at[-1] == '*' {
+                if maybe_star_name {
+                    temp error msg: ["Cannot have multiple spread assignees"];
+                };
+                maybe_star_name = [name].slice[0][[name].len-1];
+                continue;
+            };
+            if [name].at[-1] != '?' {
+                required_val_count += 1;
+            };
+            if maybe_star_name {
+                [post_star_names].append[name];
+            } else {
+                [pre_star_names].append[name];
+            };
+        };
+
+        [$PodVal]:vals = [args].slice_from[val_start_idx];
+
+        Z:optional_val_count = [vals].len#Z - (required_val_count#Z);
+        if optional_val_count < 0 {
+            temp error msg: ["Not enough values for all assignees"];
+        };
+
+        L:val_idx = 0;
+
+        PodFrame:frame = [stack.frames].at[-1];
+        for Str:name in pre_star_names {
+            if [name].at[-1] == '?' {
+                $PodVal:val = pod nil;
+                if optional_val_count > 0 {
+                    val = vals[val_idx];
+                    val_idx += 1;
+                    optional_val_count -= 1;
+                };
+                set var [[name].slice[0][[name].len-1]]
+                    in [frame]
+                    to [val];
+            } else {
+                set var [name]
+                    in [frame]
+                    to [vals[val_idx]];
+                val_idx += 1;
+            };
+        };
+
+        for Str:name in post_star_names step -1 {
+            if [name].at[-1] == '?' {
+                $PodVal:val = pod nil;
+                if optional_val_count > 0 {
+                    val = [vals].pop_end;
+                    optional_val_count -= 1;
+                };
+                set var [[name].slice[0][[name].len-1]]
+                    in [frame]
+                    to [val];
+            } else {
+                set var [name]
+                    in [frame]
+                    to [[vals].pop_end];
+            };
+        };
+
+        given maybe_star_name as Str:star_name {
+            set var [star_name]
+                in [frame]
+                to [PodArray [[vals].slice_from[val_idx]]];
+        } else {
+            if optional_val_count > 0 {
+                temp error msg: ["Too many values for specified assignees"];
+            };
+        };
     }
     ("car") {
         require between [1] and [1] in [args];
