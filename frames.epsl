@@ -41,6 +41,16 @@ PodFrame#make root frame {
     ];
 }
 
+#register fn [$PodFn:fn] under [Str:name] in [PodStack:stack] {
+    for PodRegisteredFn:registered in stack.fns {
+        if [registered.name] equals [name] {
+            registered.fn = fn;
+            return;
+        };
+    };
+    [stack.fns].append[PodRegisteredFn [name, fn]];
+}
+
 PodStack#make new stack {
     PodStack:stack = PodStack [
         [PodFrame] [make root frame],

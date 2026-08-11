@@ -1,0 +1,6 @@
+defun sayhi {
+    print "Hello," $0
+}
+
+sayhi "user"
+sayhi "world!"

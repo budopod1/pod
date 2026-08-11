@@ -467,6 +467,18 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
             abort ["cdr with non pair not implemented"];
         };
     }
+    ("defun") {
+        require between [2] and [2] in [args];
+        require [args[0]] matches [SymbolPattern []];
+        require [args[1]] matches [FnPattern []];
+        register fn [[args[1]#$PodFn?].unwrap]
+            under [[args[0]].get_string]
+            in [stack];
+    }
+    ("repr") {
+        require between [1] and [1] in [args];
+        return PodStr [[args[0]].stringify];
+    }
     {
         abort ["{} is not a builtin" % builtin.name];
     };
@@ -505,10 +517,11 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "set",
         "car",
         "cdr",
+        "defun",
+        "repr",
     ];
     for Str:name in names {
-        [stack.fns].append[PodRegisteredFn [
-            name, PodBuiltinFn [name, [$PodVal] []]
-        ]];
+        $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];
+        register fn [fn] under [name] in [stack];
     };
 }
