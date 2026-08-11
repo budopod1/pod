@@ -1,0 +1,26 @@
+%import fileio;
+%import errors;
+%import paths;
+
+FileReadResult {
+    Str?:txt,
+    $ErrorBundle:errors
+}
+
+$ErrorBundle#IO error msg: [Str:msg] path: [Path?:maybe_path] {
+    given maybe_path as Path:path {
+        msg = "{}: {}" % [path].stringify % msg;
+    };
+    return bundle [[IOError] [IOError [
+        msg, maybe_path
+    ]]];
+}
+
+FileReadResult#read file [Path:path] {
+    given open_file[[path].stringify][FILE_READ_MODE] as File:file {
+        given [file].read_all as Str:file_text {
+            return FileReadResult [file_text, empty error bundle];
+        };
+    };
+    return FileReadResult [null, IO error msg: ["Cannot read file"] path: [path]];
+}

@@ -1,0 +1,68 @@
+%import tokenizer;
+%import errors;
+
+TokenizationResult#group tokens [Tokens:src_tokens] {
+    [TokenizationError]:errors = [TokenizationError] [];
+    Tokens:toplevel_tokens = new_Tokens_at[0];
+    [Tokens]:group_stack = [Tokens] [toplevel_tokens];
+    [Byte]:end_chr_stack = Str ['\0'];
+    Tokens:current_tokens = toplevel_tokens;
+    W:last_end_index = 0;
+    for L:i enumerating src_tokens.ids {
+        W:id = src_tokens.ids[i];
+        W:start_index = src_tokens.start_indexes[i];
+        W:end_index = src_tokens.end_indexes[i];
+        if id == '('/* || id == '['*/ || id == '{' {
+            Byte:end_chr = '\0';
+            if id == '(' {
+                end_chr = ')';
+//             } elif id == '[' {
+//                 end_chr = ']';
+            } elif id == '{' {
+                end_chr = '}';
+            };
+            [end_chr_stack].append[end_chr];
+            current_tokens = new_Tokens_at[start_index];
+            [group_stack].append[current_tokens];
+        } elif id == ')'/* || id == ']'*/ || id == '}' {
+            if [end_chr_stack].len <= 1 {
+                [errors].append[TokenizationError [
+                    "Unexpected closing delimiter", start_index
+                ]];
+            };
+            Tokens:group_ended = [group_stack].pop_end;
+            W:group_start = group_ended.start_index;
+            if [end_chr_stack].pop_end != id {
+                [errors].append[TokenizationError [
+                    "Opening delimiter not matched by closing delimiter '{}'" % id#Byte,
+                    group_start
+                ]];
+            };
+            current_tokens = [group_stack].at[-1];
+            W:group_id = 0;
+            if id == ')' {
+                group_id = T_PAREN_GROUP;
+//             } elif id == ']' {
+//                 group_id = T_SQUARE_GROUP;
+            } elif id == '}' {
+                group_id = T_CURLY_GROUP;
+            };
+            [current_tokens.ids].append[group_id];
+            [current_tokens.start_indexes].append[group_start];
+            [current_tokens.end_indexes].append[end_index];
+            [current_tokens.data].append[GroupTokenData [group_ended]];
+        } else {
+            [current_tokens.ids].append[id];
+            [current_tokens.start_indexes].append[start_index];
+            [current_tokens.end_indexes].append[end_index];
+            [current_tokens.data].append[src_tokens.data[i]];
+        };
+        last_end_index = end_index;
+    };
+    while [end_chr_stack].len > 1 {
+        [errors].append[TokenizationError [
+            "Unclosed group, expected '{}'" % [end_chr_stack].pop_end, last_end_index
+        ]];
+    };
+    return TokenizationResult [toplevel_tokens, errors];
+}

@@ -1,0 +1,206 @@
+%import tokenizer;
+%import errors;
+
+ParseState {
+    Tokens:tokens,
+    L:index,
+    [ParseError]:errors
+}
+
+Bool#[ParseState:state].is_at_end {
+    return state.index >= [state.tokens.ids].len;
+}
+
+#[ParseState:state].error_between [W:start] and [W:end] msg: [Str:msg] {
+    [state.errors].append[ParseError [msg, start, end]];
+}
+
+#[ParseState:state].error_at[L:i] msg: [Str:msg] {
+    [state].error_between [state.tokens.start_indexes[i]]
+        and [state.tokens.end_indexes[i]] msg: [msg];
+}
+
+#[ParseState:state].error_at[[L]:is] msg: [Str:msg] {
+    [state].error_between [state.tokens.start_indexes[is[0]]]
+        and [state.tokens.end_indexes[[is].at[-1]]] msg: [msg];
+}
+
+// #[ParseState:state].error_at[$Node:node] msg: [Str:msg] {
+//     [state].error_between [node.start_index] and [node.end_index] msg: [msg];
+// }
+
+// #[ParseState:state].error_at[[$Node]:nodes] msg: [Str:msg] {
+//     [state].error_between [nodes[0].start_index]
+//         and [[nodes].at[-1].end_index] msg: [msg];
+// }
+
+#[ParseState:state].error_after[L:i] msg: [Str:msg] {
+    W:pos = state.tokens.start_index;
+    given state.tokens.end_indexes[i]? as W:end_index {
+        pos = end_index + 1;
+    };
+    [state].error_between [pos] and [pos] msg: [msg];
+}
+
+#[ParseState:state].error_at_end msg: [Str: msg] {
+    [state].error_after[[state.tokens.ids].len-1] msg: [msg];
+}
+
+#[ParseState:state].error_at_previous msg: [Str: msg] {
+    [state].error_at[state.index-1] msg: [msg];
+}
+
+#[ParseState:state].error_at_current msg: [Str: msg] {
+    if [state].is_at_end {
+        [state].error_at_end msg: [msg];
+    } else {
+        [state].error_at[state.index] msg: [msg];
+    };
+}
+
+#[ParseState:state].error_about_current msg: [Str:msg] {
+    Str:token_name = token_id_to_name[[state].cur_id];
+    [state].error_at_current msg: ["{}, found {}" % msg % token_name];
+}
+
+#[ParseState:state].error_across_state msg: [Str:msg] {
+    if state.tokens.ids {
+        [state].error_between [state.tokens.start_index]
+            and [[state.tokens.end_indexes].at[-1]] msg: [msg];
+    } else {
+        [state].error_between [state.tokens.start_index]
+            and [state.tokens.start_index] msg: [msg];
+    };
+}
+
+Bool#[ParseState:state].consume[W:target_id] name: [Str?:target_name] {
+    if [state].is_at_end {
+        Str:msg = "Expected {}" % [target_name] || [token_id_to_name[target_id]];
+        [state].error_at_end msg: [msg];
+        return false;
+    };
+    W:found_id = [state].cur_id;
+    if found_id == target_id {
+        state.index += 1;
+        return true;
+    } else {
+        [state].error_about_current msg: ["Expected {}"
+            % [target_name] || [token_id_to_name[target_id]]];
+        return false;
+    };
+}
+
+Bool#[ParseState:state].consume[W:target_id] {
+    return [state].consume[target_id] name: [null];
+}
+
+Bool#[ParseState:state].require_more why: [Str:why] {
+    if [state].is_at_end {
+        [state].error_at_end msg: [why];
+        return false;
+    } else {
+        return true;
+    };
+}
+
+Bool#[ParseState:state].require_finished why: [Str:why] {
+    if [state].is_at_end {
+        return true;
+    } else {
+        [state].error_at_current msg: [("Expected {}" % why)
+            % token_id_to_name[[state].cur_id]];
+        return false;
+    };
+}
+
+#[ParseState:state].consume {
+    if [state].is_at_end {
+        abort ["Cannot consume token when none remain"];
+    };
+    state.index += 1;
+}
+
+#[ParseState:state].unconsume {
+    if state.index == 0 {
+        abort ["Cannot unconsume token when none have been consumed"];
+    };
+    state.index -= 1;
+}
+
+Tokens#[ParseState:state].new_section {
+    return new_Tokens_at[state.tokens.start_indexes[state.index]];
+}
+
+#[ParseState:state].move_token_to[Tokens:dest] {
+    if [state].is_at_end {
+        abort ["Cannot move token when none remain"];
+    };
+    [dest].add_from[state.tokens][state.index];
+    state.index += 1;
+}
+
+W#[ParseState:state].cur_id {
+    if [state].is_at_end {
+        abort ["Cannot get token ID when none remain"];
+    };
+    return state.tokens.ids[state.index];
+}
+
+$TokenData?#[ParseState:state].cur_data {
+    if [state].is_at_end {
+        abort ["Cannot get token data when none remain"];
+    };
+    return state.tokens.data[state.index];
+}
+
+W#[ParseState:state].cur_start {
+    return [state.tokens.start_indexes[state.index]?] || [state.tokens.start_index];
+}
+
+ParseState#[ParseState:state].cur_substate {
+    given [state].cur_data as GroupTokenData:group {
+        return ParseState [group.sub, 0, state.errors];
+    } else {
+        abort ["Non group tokens do not have substates"];
+    };
+}
+
+Str?#[ParseState:state].try_read_sym {
+    if [state].is_at_end || [state].cur_id != T_SYM {
+        return null;
+    };
+    return [[state].cur_data].read_symbol;
+}
+
+W#[ParseState:state].last_id {
+    return state.tokens.ids[state.index - 1];
+}
+
+$TokenData?#[ParseState:state].last_data {
+    return state.tokens.data[state.index - 1];
+}
+
+W#[ParseState:state].last_start {
+    return [state.tokens.start_indexes[state.index - 1]?] || [state.tokens.start_index];
+}
+
+W#[ParseState:state].last_end {
+    return [state.tokens.end_indexes[state.index - 1]?] || [state.tokens.start_index];
+}
+
+ParseState#[ParseState:state].last_substate {
+    given [state].last_data as GroupTokenData:group {
+        return ParseState [group.sub, 0, state.errors];
+    } else {
+        abort ["Non group tokens do not have substates"];
+    };
+}
+
+#[ParseState:state].move_past_semicolon why: [Str:why] {
+    while [state].cur_id != ';' {
+        if ![state].require_more why: ["Expected ';' {}" % why] {
+            return;
+        };
+        state.index += 1;
+    };
+}

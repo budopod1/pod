@@ -1,0 +1,301 @@
+%import pattern;
+%import frames;
+%import eval;
+%import vals;
+
+$PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:stack] {
+    switch builtin.name
+    ("+") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:x = 0;
+            for $PodVal:arg in args {
+                x += [arg] as int;
+            };
+            return PodInt [x];
+        } else {
+            R:x = 0;
+            for $PodVal:arg in args {
+                x += [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+    ("-") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:x = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                x -= [arg] as int;
+            };
+            return PodInt [x];
+        } else {
+            R:x = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                x -= [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+    (".") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:x = 1;
+            for $PodVal:arg in args {
+                x *= [arg] as int;
+            };
+            return PodInt [x];
+        } else {
+            R:x = 1;
+            for $PodVal:arg in args {
+                x *= [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+    ("/") {
+        require [args] all match [NumberPattern []];
+        R:x = [args[0]] as float;
+        for $PodVal:arg in args from 1 {
+            x /= [arg] as float;
+        };
+        return PodFloat [x];
+    }
+    ("~/") {
+        require [args] all match [IntPattern []];
+        Z64:x = [args[0]] as int;
+        for $PodVal:arg in args from 1 {
+            x = x ~/ [arg] as int;
+        };
+        return PodInt [x];
+    }
+    ("%") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:x = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                x %= [arg] as int;
+            };
+            return PodInt [x];
+        } else {
+            R:x = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                x %= [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+    ("<") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:last = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:current = [arg] as int;
+                if !(last < current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        } else {
+            R:last = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:current = [arg] as float;
+                if !(last < current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        };
+    }
+    (">") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:last = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:current = [arg] as int;
+                if !(last > current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        } else {
+            R:last = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:current = [arg] as float;
+                if !(last > current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        };
+    }
+    ("<=") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:last = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:current = [arg] as int;
+                if !(last <= current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        } else {
+            R:last = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:current = [arg] as float;
+                if !(last <= current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        };
+    }
+    (">=") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:last = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:current = [arg] as int;
+                if !(last >= current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        } else {
+            R:last = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:current = [arg] as float;
+                if !(last >= current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        };
+    }
+    ("not") {
+        return pod bool [![args[0]].is_truthy];
+    }
+    ("print") {
+        Str:result = [""].clone;
+        for L:i enumerating args {
+            if i {
+                [result].append[' '];
+            };
+            [result].extend[[args[i]].get_string];
+        };
+        println[result];
+    }
+    ("!") {
+        PodFrame:frame = [stack.frames].at[-1];
+        frame.important = true;
+        if args {
+            frame.label = [args[0]].get_string;
+        };
+    }
+    ("forever") {
+        require between [1] and [1] in [args];
+        while true {
+            run [args[0]] with [[$PodVal] []] in [stack];
+        };
+    }
+    ("if") {
+        require between [2] and [null] in [args];
+        if [args].len > 2 {
+            abort [">2 args to if not implemented"];
+        };
+        $PodVal:result = pod nil;
+        if [args[0]].is_truthy {
+            result = run [args[1]] with [[$PodVal] [args[0]]] in [stack];
+        };
+        return result;
+    }
+    ("inputline") {
+        Str:result = [""].clone;
+        for L:i enumerating args {
+            if i {
+                [result].append[' '];
+            };
+            [result].extend[[args[i]].get_string];
+        };
+        print[result];
+        return PodStr [read_input_line];
+    }
+    ("array") {
+        return PodArray [args];
+    }
+    ("cons") {
+        require between [2] and [2] in [args];
+        return PodPair [args[0], args[1]];
+    }
+    ("set") {
+        require between [3] and [null] in [args];
+        if [args].len > 3 {
+            abort ["set with >3 args not implemented"];
+        };
+        require [args[0]] matches [SymbolPattern []];
+        require [args[1]] matches [ExactSymbolPattern ["="]];
+        set var [[args[0]].get_string]
+            in [[stack.frames].at[-1]]
+            to [args[2]];
+    }
+    ("car") {
+        require between [1] and [1] in [args];
+        given args[0] as PodPair:pair {
+            return pair.car;
+        } else {
+            abort ["car with non pair not implemented"];
+        };
+    }
+    ("cdr") {
+        require between [1] and [1] in [args];
+        given args[0] as PodPair:pair {
+            return pair.cdr;
+        } else {
+            abort ["cdr with non pair not implemented"];
+        };
+    }
+    {
+        abort ["{} is not a builtin" % builtin.name];
+    };
+    return pod nil;
+}
+
+#register builtin fns [PodStack:stack] {
+    [Str]:names = [Str] [
+        "+",
+        "-",
+        ".",
+        "/",
+        "~/",
+        "%",
+        "<",
+        ">",
+        "<=",
+        ">=",
+        "not",
+        "print",
+        "!",
+        "forever",
+        "if",
+        "inputline",
+        "array",
+        "cons",
+        "set",
+        "car",
+        "cdr",
+    ];
+    for Str:name in names {
+        [stack.fns].append[PodRegisteredFn [
+            name, PodBuiltinFn [name, [$PodVal] []]
+        ]];
+    };
+}

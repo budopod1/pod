@@ -1,0 +1,84 @@
+%import builtins;
+%import frames;
+%import vals;
+%import ast;
+
+#temp error msg: [Str:msg] {
+    abort ["RUNTIME ERROR: {}" % msg];
+}
+
+$PodVal#evaluate [$PodExpr:expr] in [PodStack:stack] {
+    given expr as PodSExpr:sexpr {
+        return evaluate [sexpr] in [stack];
+    } given expr as PodFnExpr:fn_expr {
+        return PodClearFn [fn_expr.code, [stack.frames].at[-1]];
+    } given expr as PodVarExpr:var_expr {
+        return lookup [var_expr.name] in [[stack.frames].at[-1]];
+    } given expr as PodLiteralExpr:literal_expr {
+        return literal_expr.val;
+    } else {
+        abort;
+    };
+}
+
+$PodVal#run [$PodVal:val] with [[$PodVal]:args] in [PodStack:stack] {
+    given val as $PodFn:fn {
+        return run [fn] with [args] in [stack];
+    } given val as PodSymbol:sym {
+        given lookup registered fn [sym.str] in [stack] as $PodFn:fn {
+            return run [fn] with [args] in [stack];
+        } else {
+            abort ["cmd function to run '{}' not implemented" % sym.str];
+        };
+    } else {
+        temp error msg: ["cannot execute {}" % [val].stringify_type];
+        abort;
+    };
+}
+
+$PodVal#evaluate [PodSExpr:sexpr] in [PodStack:stack] {
+    if sexpr.pipeline {
+        abort ["pipeline is not implemented"];
+    };
+    [$PodVal]:expanded_args = [$PodVal] [];
+    for $PodArg:arg in sexpr.args {
+        given arg as $PodExpr:expr {
+            [expanded_args].append[evaluate [expr] in [stack]];
+        } given arg as PodSpreadArg:spread {
+            abort ["spread arg not implemented"];
+        } else {
+            abort;
+        };
+    };
+    if !expanded_args {
+        temp error msg: ["at least one argument is required"];
+    };
+    $PodVal:fn = [expanded_args].pop[0];
+    return run [fn] with [expanded_args] in [stack];
+}
+
+$PodVal#run clear [PodClearFn:fn] with [[$PodVal]:args] in [PodStack:stack] {
+    [stack.frames].append[PodFrame [
+        fn,
+        false,
+        null,
+        [PodFrameVar] [],
+        args    
+    ]];
+    $PodVal?:result = null;
+    for PodSExpr:line in fn.code {
+        result = evaluate [line] in [stack];
+    };
+    [stack.frames].pop_end;
+    return [result].unwrap;
+}
+
+$PodVal#run [$PodFn:fn] with [[$PodVal]:args] in [PodStack:stack] {
+    given fn as PodClearFn:clear {
+        return run clear [clear] with [args] in [stack];
+    } given fn as PodBuiltinFn:builtin {
+        return run builtin [builtin] with [args] in [stack];
+    } else {
+        abort;
+    };
+}

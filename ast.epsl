@@ -1,0 +1,36 @@
+%import vals;
+
+@super;
+// @sealed;
+PodArg {}
+
+@super;
+@extends PodArg;
+// @sealed;
+PodExpr {}
+
+@extends PodExpr;
+PodSExpr {
+    [$PodArg]:args,
+    PodSExpr?:pipeline
+}
+
+@extends PodExpr;
+PodFnExpr {
+    [PodSExpr]:code
+}
+
+@extends PodExpr;
+PodVarExpr {
+    Str:name
+}
+
+@extends PodExpr;
+PodLiteralExpr {
+    $PodVal:val
+}
+
+@extends PodArg;
+PodSpreadArg {
+    $PodExpr:val
+}

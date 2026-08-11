@@ -1,0 +1,89 @@
+%import eval;
+%import vals;
+
+@super;
+Pattern {}
+
+@extends Pattern;
+NumberPattern {}
+
+@extends Pattern;
+IntPattern {}
+
+@extends Pattern;
+ExactSymbolPattern {
+    Str:str
+}
+
+@extends Pattern;
+SymbolPattern {}
+
+Bool#[$PodVal:val].matches[$Pattern:pattern] {
+    given pattern as NumberPattern:num_pattern {
+        return (val#PodFloat?) || (val#PodInt?);
+    } given pattern as IntPattern:int_pattern {
+        return !!(val#PodInt?);
+    } given pattern as ExactSymbolPattern:exact_sym_pattern {
+        given val as PodSymbol:sym {
+            return [exact_sym_pattern.str] equals [sym.str];
+        } else {
+            return false;
+        };
+    } given pattern as SymbolPattern:sym_pattern {
+        return !!(val#PodSymbol?);
+    } else {
+        abort;
+    };
+}
+
+Bool#[[$PodVal]:vals].all_match[$Pattern:pattern] {
+    for $PodVal:val in vals {
+        if ![val].matches[pattern] {
+            return false;
+        };
+    };
+    return true;
+}
+
+Str#[$Pattern:pattern].message {
+    given pattern as NumberPattern:num_pattern {
+        return "number";
+    } given pattern as IntPattern:int_pattern {
+        return "int";
+    } given pattern as ExactSymbolPattern:exact_sym_pattern {
+        return "'{}'" % exact_sym_pattern.str;
+    } given pattern as SymbolPattern:sym_pattern {
+        return "symbol";
+    } else {
+        abort;
+    };
+}
+
+#require [$PodVal:val] matches [$Pattern:pattern] {
+    if ![val].matches[pattern] {
+        Str:msg = "expected {}, got {}" % [pattern].message % [val].stringify;
+        temp error msg: [msg];
+    };
+}
+
+#require [[$PodVal]:vals] all match [$Pattern:pattern] {
+    for $PodVal:val in vals {
+        require [val] matches [pattern];
+    };
+}
+
+#require between [L?:maybe_min] and [L?:maybe_max] in [[$PodVal]:vals] {
+    L:count = [vals].len;
+    given maybe_min as L:min {
+        if count < min {
+            Str:msg = "required all least {} values, got {}" % min % count;
+            temp error msg: [msg];
+        };
+    };
+    given maybe_max as L:max {
+        if count > max {
+            Str:msg = "required all most {} values, got {}" % max % count;
+            temp error msg: [msg];
+        };
+    };
+}

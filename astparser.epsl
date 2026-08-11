@@ -1,0 +1,88 @@
+%import tokenizer;
+%import parsing;
+%import vals;
+%import ast;
+
+$PodExpr?#parse expr [ParseState:state] {
+    [state].consume;
+    if [state].last_id == T_CURLY_GROUP {
+        return parse fn body [[state].last_substate];
+    } elif [state].last_id == T_PAREN_GROUP {
+        return parse S expr [[state].last_substate];
+    } elif [state].last_id == T_INT {
+        Z64:val = [[state].last_data#IntTokenData?].unwrap.val;
+        return PodLiteralExpr [PodInt [val]];
+    } elif [state].last_id == T_FLOAT {
+        R:val = [[state].last_data#FloatTokenData?].unwrap.val;
+        return PodLiteralExpr [PodFloat [val]];
+    } elif [state].last_id == T_STR {
+        Str:val = [[state].last_data#StrTokenData?].unwrap.val;
+        return PodLiteralExpr [PodStr [val]];
+    } elif [state].last_id == T_SYM {
+        Str:sym = [[state].last_data].read_symbol;
+        if sym[0] == '$' {
+            return PodVarExpr [[sym].slice_from[1]];
+        } else {
+            return PodLiteralExpr [PodSymbol [sym]];
+        };
+    };
+
+    [state].unconsume;
+    [state].error_about_current msg: ["Expected expression"];
+    return null;
+}
+
+PodSExpr?#parse S expr [ParseState:state] {
+    [$PodArg]:args = [$PodArg] [];
+    while ![state].is_at_end && [state].cur_id != ';'
+        && [state].cur_id != '|' {
+        Bool:is_star = [state].cur_id == '*';
+        if is_star {
+            [state].consume; // eat the '*'
+        };
+        given parse expr [state] as $PodExpr:expr {
+            $PodArg:arg = expr;
+            if is_star {
+                arg = PodSpreadArg [expr];
+            };
+            [args].append[arg];
+        } else {
+            return null;
+        };
+    };
+    if !args {
+        [state].error_at_current
+            msg: ["Expected argument in S expression"];
+        return null;
+    };
+    PodSExpr?:pipeline = null;
+    if ![state].is_at_end && [state].cur_id == '|' {
+        [state].consume; // eat the '|'
+        pipeline = parse S expr [state];
+        if [pipeline].is_null {
+            return null;
+        };
+    };
+    return PodSExpr [args, pipeline];
+}
+
+PodFnExpr?#parse fn body [ParseState:state] {
+    if ![state].require_more why: ["Expected S expression"] {
+        return null;
+    };
+    [PodSExpr]:code = [PodSExpr] [];
+    while ![state].is_at_end {
+        given parse S expr [state] as PodSExpr:sexpr {
+            [code].append[sexpr];
+        } else {
+            return null;
+        };
+        if [state].is_at_end {
+            break;
+        };
+        if ![state].consume[';'] {
+            return null;
+        };
+    };
+    return PodFnExpr [code];
+}

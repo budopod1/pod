@@ -1,0 +1,104 @@
+%import builtins;
+%import vals;
+%import eval;
+
+PodRegisteredFn {
+    Str:name,
+    $PodFn:fn
+}
+
+PodStack {
+    [PodFrame]:frames,
+    [PodRegisteredFn]:fns
+}
+
+PodFrameVar {
+    Str:name,
+    $PodVal:val
+}
+
+PodFrame {
+    PodClearFn?:fn,
+    Bool:important,
+    Str?:label,
+    [PodFrameVar]:vars,
+    [$PodVal]:arg_vals
+    // maybe error handling info?
+}
+
+PodFrame#make root frame {
+    [PodFrameVar]:builtin_vars = [PodFrameVar] [
+        PodFrameVar ["nil", pod nil],
+        PodFrameVar ["true", pod bool [true]],
+        PodFrameVar ["false", pod bool [false]],
+    ];
+    return PodFrame [
+        null,
+        true,
+        "top",
+        builtin_vars,
+        [$PodVal] []
+    ];
+}
+
+PodStack#make new stack {
+    PodStack:stack = PodStack [
+        [PodFrame] [make root frame],
+        [PodRegisteredFn] []
+    ];
+    register builtin fns [stack];
+    return stack;
+}
+
+PodFrameVar?#get var [Str:name] in [PodFrame:frame] {
+    while true {
+        for PodFrameVar:var in frame.vars {
+            if [var.name] equals [name] {
+                return var;
+            };
+        };
+        given frame.fn as PodClearFn:fn {
+            frame = fn.parent_frame;
+        } else {
+            return null;
+        };
+    };
+}
+
+$PodVal#lookup [Str:name] in [PodFrame:frame] {
+    if [name] equals ["@"] {
+        return PodArray [frame.arg_vals];
+    };
+    given parse_int[name] as Z:i {
+        if i >= 0 {
+            given frame.arg_vals[i]? as $PodVal:arg {
+                return arg;
+            } else {
+                temp error msg: ["argument index {} out of range" % i];
+            };
+        };
+    };
+    given get var [name] in [frame] as PodFrameVar:var {
+        return var.val;
+    } else {
+        temp error msg: ["cannot find variable {}" % name];
+        abort;
+    };
+}
+
+#set var [Str:name] in [PodFrame:frame] to [$PodVal:val] {
+    given get var [name] in [frame] as PodFrameVar:var {
+        var.val = val;
+    } else {
+        [frame.vars].append[PodFrameVar [name, val]];
+    };
+}
+
+$PodFn?#lookup registered fn [Str:name] in [PodStack:stack] {
+    for PodRegisteredFn:fn in stack.fns {
+        if [fn.name] equals [name] {
+            return fn.fn;
+        };
+    };
+    return null;
+}

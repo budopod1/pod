@@ -1,0 +1,269 @@
+%import frames;
+%import ast;
+
+// @sealed;
+@super;
+PodVal {}
+
+@extends PodVal;
+PodSymbol {
+    Str:str
+}
+
+@extends PodVal;
+PodStr {
+    Str:val
+}
+
+@extends PodVal;
+PodInt {
+    Z64:val
+}
+
+@extends PodVal;
+PodFloat {
+    R:val
+}
+
+// globally unique per true/false value, only two are created
+@extends PodVal;
+PodBool {
+    Bool:val
+}
+
+// globally unique, only one is created
+@extends PodVal;
+PodNil {}
+
+@extends PodVal;
+PodPair {
+    $PodVal:car,
+    $PodVal:cdr
+}
+
+@extends PodVal;
+PodArray {
+    [$PodVal]:elems
+}
+
+@extends PodVal;
+PodArray {
+    [$PodVal]:elems
+}
+
+@super;
+@extends PodVal;
+PodOpaque {
+    Str:name
+}
+
+SourceLocation {}
+
+@extends PodVal;
+PodError {
+    Str:type,
+    Str?:msg,
+    $PodVal?:data,
+    SourceLocation?:location
+}
+
+@super;
+@extends PodVal;
+// @sealed;
+PodFn {}
+
+@extends PodFn;
+// 'clear' as in 'transparent', because the source can be viewed
+PodClearFn {
+    [PodSExpr]:code,
+    PodFrame:parent_frame
+}
+
+@extends PodFn;
+PodBuiltinFn {
+    Str:name,
+    [$PodVal]:data
+}
+
+%global PodNil?:the_nil;
+
+PodNil#pod nil {
+    given the_nil as PodNil:nil {
+        return nil;
+    };
+    PodNil:new_nil = PodNil [];
+    the_nil = new_nil;
+    return new_nil;
+}
+
+%global PodBool?:the_false;
+%global PodBool?:the_true;
+
+PodBool#pod bool [Bool:val] {
+    if val {
+        given the_true as PodBool:bool {
+            return bool;
+        };
+        PodBool:new_bool = PodBool [true];
+        the_true = new_bool;
+        return new_bool;
+    } else {
+        given the_false as PodBool:bool {
+            return bool;
+        };
+        PodBool:new_bool = PodBool [false];
+        the_false = new_bool;
+        return new_bool;
+    };
+}
+
+Z64#[$PodVal:val] as int {
+    given val as PodInt:int {
+        return int.val;
+    } else {
+        abort ["Expected value with int type"];
+    };
+}
+
+R#[$PodVal:val] as float {
+    given val as PodInt:int {
+        return int.val;
+    } given val as PodFloat:float {
+        return float.val;
+    } else {
+        abort ["Expected value with float type"];
+    };
+}
+
+Bool#[$PodVal:val].is_truthy {
+    given val as PodStr:str {
+        return !!str.val;
+    } given val as PodSymbol:sym {
+        return !!sym.str;
+    } given val as PodInt:int {
+        return !!int.val;
+    } given val as PodFloat:float {
+        return !!float.val;
+    } given val as PodBool:bool {
+        return bool.val;
+    } given val as PodNil:nil {
+        return false;
+    } given val as PodPair:pair {
+        return true;
+    } given val as PodArray:array {
+        return !!array.elems;
+    } given val as PodOpaque:opaque {
+        return true;
+    } given val as PodError:error {
+        return false;
+    } given val as PodClearFn:fn {
+        return true;
+    } given val as PodBuiltinFn:builtin {
+        return true;
+    } else {
+        abort;
+    };
+}
+
+Str#unparse string [Str:str] {
+    Str:result = Str ['"'];
+    for Byte:byte in str {
+        if byte == '"' {
+            [result].extend["\\\""];
+        } elif byte == '\\' {
+            [result].extend["\\\\"];
+        } elif byte == '\0' {
+            [result].extend["\\0"];
+        } elif byte == '\n' {
+            [result].extend["\\n"];
+        } elif byte == '\r' {
+            [result].extend["\\r"];
+        } elif byte == '\t' {
+            [result].extend["\\t"];
+        } elif byte == 127 || byte < 32 {
+            [result].extend["\\u00"];
+            Str:hex_nibbles = "0123456789ABCDEF";
+            [result].append[hex_nibbles[byte ~/ 16]];
+            [result].append[hex_nibbles[byte % 16]];
+        } else {
+            [result].append[byte];
+        };
+    };
+    [result].append['"'];
+    return result;
+}
+
+Str#[$PodVal:val].stringify {
+    given val as PodStr:str {
+        return unparse string [str.val];
+    } given val as PodSymbol:sym {
+        return sym.str;
+    } given val as PodInt:int {
+        return [int.val].stringify;
+    } given val as PodFloat:float {
+        return [float.val].stringify;
+    } given val as PodBool:bool {
+        return [bool.val].stringify;
+    } given val as PodNil:nil {
+        return "nil";
+    } given val as PodPair:pair {
+        return "(cons {} {})" % [pair.car].stringify % [pair.cdr].stringify;
+    } given val as PodArray:array {
+        Str:elem_str = [""].clone;
+        for L:i enumerating array.elems {
+            if i {
+                [elem_str].append[' '];
+            };
+            [elem_str].extend[[array.elems[i]].stringify];
+        };
+        return "(array {})" % elem_str;
+    } given val as PodOpaque:opaque {
+        return ["#"] + [opaque.name];
+    } given val as PodError:error {
+        return ["error:"] + [error.type];
+    } given val as PodClearFn:fn {
+        return "function";
+    } given val as PodBuiltinFn:builtin {
+        return "builtin function";
+    } else {
+        abort;
+    };
+}
+
+Str#[$PodVal:val].get_string {
+    given val as PodStr:str {
+        return str.val;
+    } else {
+        return [val].stringify;
+    };
+}
+
+Str#[$PodVal:val].stringify_type {
+    given val as PodSymbol:sym {
+        return "symbol";
+    } given val as PodStr:str {
+        return "string";
+    } given val as PodInt:int {
+        return "int";
+    } given val as PodFloat:float {
+        return "float";
+    } given val as PodBool:bool {
+        return "bool";
+    } given val as PodNil:nil {
+        return "nil";
+    } given val as PodPair:pair {
+        return "pair";
+    } given val as PodArray:array {
+        return "array";
+    } given val as PodOpaque:opaque {
+        return opaque.name;
+    } given val as PodError:error {
+        return "error";
+    } given val as PodClearFn:fn {
+        return "function";
+    } given val as PodBuiltinFn:builtin {
+        return "builtin function";
+    } else {
+        abort;
+    };
+}

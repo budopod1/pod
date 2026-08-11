@@ -1,0 +1,83 @@
+%import astparser;
+%import tokenizer;
+%import parsing;
+%import iotools;
+%import grouper;
+%import errors;
+%import frames;
+%import paths;
+%import eval;
+%import proc;
+%import vals;
+%import ast;
+
+#CLI error [Str:msg] {
+    print["pod: "];
+    println[msg];
+    exit with status [1];
+}
+
+PodFnExpr#parse txt [Str:txt] path: [Path:path] {
+    TokenizationResult:tokenization_result = tokenize [txt];
+    if tokenization_result.errors {
+        report errors [bundle [tokenization_result] txt: [txt] path: [path]];
+        exit with status [1];
+    };
+
+    TokenizationResult:grouping_result =
+        group tokens [tokenization_result.tokens];
+    if grouping_result.errors {
+        report errors [bundle [grouping_result] txt: [txt] path: [path]];
+        exit with status [1];
+    };
+
+    ParseState:parse_state = ParseState [
+        grouping_result.tokens, 0, [ParseError] []
+    ];
+
+    PodFnExpr?:maybe_fn_expr = parse fn body [parse_state];
+    $ErrorBundle:parse_errors = bundle [parse_state.errors]
+        txt: [txt] path: [path];
+    if report errors [parse_errors] {
+        exit with status [1];
+    };
+    return [maybe_fn_expr].unwrap;
+}
+
+PodFnExpr#parse file [Path:path] {
+    FileReadResult:read_result = read file [path];
+    if report errors [read_result.errors] {
+        exit with status [1];
+    };
+    Str:txt = [read_result.txt].unwrap;
+
+    return parse txt [txt] path: [path];
+}
+
+#run file [Path:path] args: [[Str]:args] {
+    PodFnExpr:fn_expr = parse file [path];
+
+    PodStack:stack = make new stack;
+    PodClearFn:fn = PodClearFn [fn_expr.code, [stack.frames].at[-1]];
+
+    [$PodVal]:file_args = [$PodVal] [];
+    for Str:arg in args {
+        [file_args].append[PodStr [arg]];
+    };
+
+    run [fn] with [file_args] in [stack];
+}
+
+Z#main {
+    [Str]:argv = get argv;
+
+    if [argv].len < 2 {
+        CLI error ["Expected at least one argument"];
+    };
+
+    Path:entry_path = Path_from [argv[1]];
+
+    run file [entry_path] args: [[argv].slice_from[1]];
+
+    return 0;
+}

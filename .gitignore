@@ -1,0 +1,6 @@
+.*.epslspec
+.*.o
+.*.bc
+.*.ll
+.*.epslcache
+result
