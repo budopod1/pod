@@ -1,0 +1,5 @@
+set a = (float (inputline "A? "))
+set op = (symbol (inputline "Operation? "))
+set b = (float (inputline "B? "))
+
+print $a $op $b = ($op $a $b)

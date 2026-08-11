@@ -267,3 +267,63 @@ Str#[$PodVal:val].stringify_type {
         abort;
     };
 }
+
+Bool#[$PodVal:a] equals [$PodVal:b] {
+    given a as PodSymbol:sym_a {
+        given b as PodSymbol:sym_b {
+            return [sym_a.str] equals [sym_b.str];
+        };
+        return false;
+    } given a as PodStr:str_a {
+        given b as PodStr:str_b {
+            return [str_a.val] equals [str_b.val];
+        };
+        return false;
+    } given a as PodInt:int_a {
+        given b as PodInt:int_b {
+            return int_a.val == int_b.val;
+        };
+        return false;
+    } given a as PodFloat:float_a {
+        given b as PodInt:float_b {
+            return float_a.val == float_b.val;
+        };
+        return false;
+    } given a as PodBool:bool_a {
+        given b as PodBool:bool_b {
+            return bool_a.val == bool_b.val;
+        };
+        return false;
+    } given a as PodNil:nil_a {
+        return !!(b#PodNil?);
+    } given a as PodPair:pair_a {
+        given b as PodPair:pair_b {
+            return ([pair_a.car] equals [pair_b.car])
+                && ([pair_a.cdr] equals [pair_b.cdr]);
+        };
+        return false;
+    } given a as PodArray:array_a {
+        given b as PodArray:array_b {
+            if [array_a.elems].len != [array_b.elems].len {
+                return false;
+            };
+            for L:i enumerating array_a.elems {
+                if ![array_a.elems[i]] equals [array_b.elems[i]] {
+                    return false;
+                };
+            };
+            return true;
+        };
+        return false;
+    } given a as PodOpaque:opaque_a {
+        return a == b;
+    } given a as PodError:error_a {
+        return a == b;
+    } given a as PodClearFn:fn_a {
+        return a == b;
+    } given a as PodBuiltinFn:builtin_a {
+        return a == b;
+    } else {
+        abort;
+    };
+}

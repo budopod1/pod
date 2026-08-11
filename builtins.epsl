@@ -22,6 +22,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
     }
     ("-") {
+        require between [1] and [null] in [args];
         require [args] all match [NumberPattern []];
         if [args].all_match[IntPattern []] {
             Z64:x = [args[0]] as int;
@@ -54,6 +55,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
     }
     ("/") {
+        require between [1] and [null] in [args];
         require [args] all match [NumberPattern []];
         R:x = [args[0]] as float;
         for $PodVal:arg in args from 1 {
@@ -62,6 +64,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         return PodFloat [x];
     }
     ("~/") {
+        require between [1] and [null] in [args];
         require [args] all match [IntPattern []];
         Z64:x = [args[0]] as int;
         for $PodVal:arg in args from 1 {
@@ -70,6 +73,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         return PodInt [x];
     }
     ("%") {
+        require between [1] and [null] in [args];
         require [args] all match [NumberPattern []];
         if [args].all_match[IntPattern []] {
             Z64:x = [args[0]] as int;
@@ -86,6 +90,9 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
     }
     ("<") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
         require [args] all match [NumberPattern []];
         if [args].all_match[IntPattern []] {
             Z64:last = [args[0]] as int;
@@ -110,6 +117,9 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
     }
     (">") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
         require [args] all match [NumberPattern []];
         if [args].all_match[IntPattern []] {
             Z64:last = [args[0]] as int;
@@ -134,6 +144,9 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
     }
     ("<=") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
         require [args] all match [NumberPattern []];
         if [args].all_match[IntPattern []] {
             Z64:last = [args[0]] as int;
@@ -158,6 +171,9 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
     }
     (">=") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
         require [args] all match [NumberPattern []];
         if [args].all_match[IntPattern []] {
             Z64:last = [args[0]] as int;
@@ -180,6 +196,54 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
             };
             return pod bool [true];
         };
+    }
+    ("=") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        $PodVal:first = args[0];
+        for $PodVal:val in args from 1 {
+            if !([first] equals [val]) {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
+    }
+    ("!=") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        $PodVal:first = args[0];
+        for $PodVal:val in args from 1 {
+            if [first] equals [val] {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
+    }
+    ("is") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        $PodVal:first = args[0];
+        for $PodVal:val in args from 1 {
+            if first != val {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
+    }
+    ("isnt") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        $PodVal:first = args[0];
+        for $PodVal:val in args from 1 {
+            if first == val {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
     }
     ("not") {
         return pod bool [![args[0]].is_truthy];
@@ -218,6 +282,17 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
         return result;
     }
+    ("while") {
+        require between [2] and [2] in [args];
+        while true {
+            $PodVal:cond = run [args[0]] with [[$PodVal] []] in [stack];
+            if ![cond].is_truthy {
+                break;
+            };
+
+            run [args[1]] with [[$PodVal] [cond]] in [stack];
+        };
+    }
     ("inputline") {
         Str:result = [""].clone;
         for L:i enumerating args {
@@ -228,6 +303,44 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
         print[result];
         return PodStr [read_input_line];
+    }
+    ("str") {
+        require between [1] and [1] in [args];
+        return PodStr [[args[0]].get_string];
+    }
+    ("symbol") {
+        require between [1] and [1] in [args];
+        return PodSymbol [[args[0]].get_string];
+    }
+    ("float") {
+        require between [1] and [1] in [args];
+        if [args[0]].matches[NumberPattern []] {
+            return PodFloat [[args[0]] as float];
+        };
+        given args[0] as PodStr:str {
+            given parse_float[str.val] as R:val {
+                return PodFloat [val];
+            };
+            return pod nil;
+        };
+        Str:msg = "Cannot convert {} to float" % [args[0]].stringify_type;
+        temp error msg: [msg];
+    }
+    ("int") {
+        require between [1] and [1] in [args];
+        if [args[0]].matches[IntPattern []] {
+            return PodInt [[args[0]] as int];
+        } elif [args[0]].matches[NumberPattern []] {
+            return PodInt [[args[0]] as float#Z64];
+        };
+        given args[0] as PodStr:str {
+            given parse_int[str.val] as Z64:val {
+                return PodInt [val];
+            };
+            return pod nil;
+        };
+        Str:msg = "Cannot convert {} to int" % [args[0]].stringify_type;
+        temp error msg: [msg];
     }
     ("array") {
         return PodArray [args];
@@ -281,12 +394,21 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         ">",
         "<=",
         ">=",
+        "=",
+        "!=",
+        "is",
+        "isnt",
         "not",
         "print",
         "!",
         "forever",
         "if",
+        "while",
         "inputline",
+        "str",
+        "symbol",
+        "float",
+        "int",
         "array",
         "cons",
         "set",

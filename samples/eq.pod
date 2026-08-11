@@ -1,0 +1,4 @@
+set input = "y"
+while {= $input "y"} {
+    set input = (inputline "Continue (y/n)? ")
+}
