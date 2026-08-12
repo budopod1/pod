@@ -96,6 +96,16 @@ Bool#[Byte:byte].is_symbol_start {
     return [byte].is_symbol && byte != '*';
 }
 
+Bool#[Byte:byte].is_base_id {
+    return byte == 'b' || byte == 'o' || byte == 'x';
+}
+
+Bool#[Byte:byte].is_hex_digit {
+    return [byte].is_digit
+        || ('a' <= byte && byte <= 'f')
+        || ('A' <= byte && byte <= 'F');
+}
+
 ParsedStrEscape#parse_escape [Str:txt] at [W:index] {
     W:src_len = 1;
     Str:parsed = "";
@@ -205,6 +215,69 @@ TokenDataResult#parse_float_token [Str:txt] {
     };
 }
 
+TokenDataResult#parse_base_int_token [Str:txt] {
+    Bool:is_negative = txt[0] == '-';
+    W:i = 0;
+    if is_negative {
+        i += 1;
+    };
+    if txt[i] != '0' {
+        return TokenDataResult [null, TokenizationError [
+            "Expected '0' here in integer with special base", i
+        ]];
+    };
+    i += 1; // skip the intial zero
+    if i >= [txt].len - 1 {
+        return TokenDataResult [null, TokenizationError [
+            "Expected complete integer literal", [txt].len#W - 1
+        ]];
+    };
+
+    Byte:base_id = txt[i];
+    W:base = 0;
+    if base_id == 'b' {
+        base = 2;
+    } elif base_id == 'o' {
+        base = 8;
+    } elif base_id == 'x' {
+        base = 16;
+    } else {
+        return TokenDataResult [null, TokenizationError [
+            "Expected 'b', 'o', or 'x'", i
+        ]];
+    };
+    i += 1;
+    
+    Z64:result = 0;
+    for W:j enumerating txt from i {
+        Byte:byte = txt[j];
+        W:digit_value = 0;
+        if [byte].is_digit {
+            digit_value = byte - '0';
+        } elif [byte].is_hex_digit { // should be in "abcdefABCDEF"
+            digit_value = ([byte] & [31]) + 9;
+        } else {
+            return TokenDataResult [null, TokenizationError [
+                "Invalid digit '{}'" % byte, j
+            ]];
+        };
+        if digit_value >= base {
+            return TokenDataResult [null, TokenizationError [
+                "Digit with value {} not allowed in base {} literal"
+                    % digit_value % base, j
+            ]];
+        };
+        result *= base;
+        result += digit_value;
+    };
+
+    if is_negative {
+        result *= -1;
+    };
+
+    return TokenDataResult [IntTokenData [result], null];
+}
+
 TokenizationResult#tokenize [Str:input] {
     Tokens:tokens = new_Tokens_at[0];
     [TokenizationError]:errors = [TokenizationError] [];
@@ -221,7 +294,8 @@ TokenizationResult#tokenize [Str:input] {
     7 - int
     8 - float
     9 - symbol
-    10 - standard, was backslash
+    NEW 10 - standard, was backslash
+    NEW 11 - integer with base != 10
     */
     W:parse_state = 0;
 
@@ -328,8 +402,13 @@ TokenizationResult#tokenize [Str:input] {
             Bool:is_num_end = is_end;
             if [byte].is_digit || (!so_far && byte == '-') {
                 [so_far].append[byte];
+            } elif [byte].is_base_id {
+                is_num_end = false;
+                index -= 1;
+                parse_state = 11;
             } elif byte == '.' {
-                [so_far].append[byte];
+                is_num_end = false;
+                index -= 1;
                 parse_state = 8;
             } else {
                 is_num_end = true;
@@ -350,7 +429,8 @@ TokenizationResult#tokenize [Str:input] {
         }
         (8) {
             Bool:is_num_end = is_end;
-            if [byte].is_digit {
+            if ([byte].is_digit)
+                || (byte == '.' && (![so_far].index_of['.'])) {
                 [so_far].append[byte];
             } else {
                 is_num_end = true;
@@ -392,6 +472,27 @@ TokenizationResult#tokenize [Str:input] {
                 ]];
             };
             parse_state = 0;
+        }
+        (11) {
+            Bool:is_num_end = is_end;
+            if ([byte].is_hex_digit) || ([byte].is_base_id) {
+                [so_far].append[byte];
+            } else {
+                is_num_end = true;
+                parse_state = 0;
+                index -= 1;
+            };
+            if is_num_end {
+                [tokens.ids].append[T_INT];
+                [tokens.start_indexes].append[token_start];
+                [tokens.end_indexes].append[index];
+                TokenDataResult:data_result = parse_base_int_token [so_far];
+                given data_result.error as TokenizationError:error {
+                    error.index += token_start;
+                    [errors].append[error];
+                };
+                [tokens.data].append[data_result.data];
+            };
         }
         {abort;};
         index += 1;
