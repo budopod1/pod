@@ -326,7 +326,7 @@ TokenizationResult#tokenize [Str:input] {
         }
         (7) {
             Bool:is_num_end = is_end;
-            if [byte].is_digit {
+            if [byte].is_digit || (!so_far && byte == '-') {
                 [so_far].append[byte];
             } elif byte == '.' {
                 [so_far].append[byte];

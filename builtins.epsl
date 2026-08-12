@@ -3,6 +3,38 @@
 %import eval;
 %import vals;
 
+PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
+    if base > 16 {
+        abort ["Expected base 16 or less, not {}" % base];
+    };
+
+    require between [1] and [1] in [args];
+    require [args[0]] matches [IntPattern []];
+
+    Z64:number = [args[0]] as int;
+    Bool:is_negative = number < 0;
+    if is_negative {
+        number *= -1;
+    };
+
+    Str:digits = [""].clone;
+    while number {
+        W:digit_n = (number % base)#W32;
+        [digits].append["0123456789abcdef"[digit_n]];
+        number = number ~/ base;
+    };
+
+    Str:result = [""].clone;
+    if is_negative {
+        [result].append['-'];
+    };
+    [result].extend[prefix];
+    for Byte:digit in digits step -1 {
+        [result].append[digit];
+    };
+    return PodStr [result];
+}
+
 $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:stack] {
     switch builtin.name
     ("+") {
@@ -266,6 +298,52 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
     }
     // TODO: some/every are equivalent to any/all except they take
     // an iterable and (optionally) a mapping function
+    ("min") {
+        require between [1] and [null] in [args];
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:min = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:x = [arg] as int;
+                if x < min {
+                    min = x;
+                };
+            };
+            return PodInt [min];
+        } else {
+            R:min = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:x = [arg] as float;
+                if x < min {
+                    min = x;
+                };
+            };
+            return PodFloat [min];
+        };
+    }
+    ("max") {
+        require between [1] and [null] in [args];
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:max = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:x = [arg] as int;
+                if x > max {
+                    max = x;
+                };
+            };
+            return PodInt [max];
+        } else {
+            R:max = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:x = [arg] as float;
+                if x > max {
+                    max = x;
+                };
+            };
+            return PodFloat [max];
+        };
+    }
     ("print") {
         Str:result = [""].clone;
         for L:i enumerating args {
@@ -361,6 +439,10 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
         Str:msg = "Cannot convert {} to int" % [args[0]].stringify_type;
         temp error msg: [msg];
+    }
+    ("bool") {
+        require between [1] and [1] in [args];
+        return pod bool [[args[0]].is_truthy];
     }
     ("arr") {
         return PodArray [args];
@@ -512,6 +594,15 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         require between [1] and [1] in [args];
         return PodStr [[args[0]].stringify];
     }
+    ("bin") {
+        return base [2] convert builtin [args] prefix: ["0b"];
+    }
+    ("oct") {
+        return base [8] convert builtin [args] prefix: ["0o"];
+    }
+    ("hex") {
+        return base [16] convert builtin [args] prefix: ["0x"];
+    }
     ("par") { // partial application
         require between [1] and [null] in [args];
         return PodBuiltinFn ["#par", args];
@@ -531,6 +622,26 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
     }
     ("#C") {
         return builtin.data[0];
+    }
+    ("ord") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Str:str = [args[0]].get_string;
+        given str[0]? as Byte:first_byte {
+            return PodInt [first_byte];
+        };
+    }
+    ("chr") {
+        require [args] all match [IntPattern []];
+        Str:result = [""].clone;
+        for $PodVal:val in args {
+            Z64:int = [val] as int;
+            if (int < 0 || int > 255) {
+                temp error msg: ["Invalid byte value {}" % int];
+            };
+            [result].append[int#Byte];
+        };
+        return PodStr [result];
     }
     {
         abort ["{} is not a builtin" % builtin.name];
@@ -557,6 +668,8 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "not",
         "any",
         "all",
+        "min",
+        "max",
         "print",
         "!",
         "forever",
@@ -567,6 +680,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "symbol",
         "float",
         "int",
+        "bool",
         "arr",
         "cons",
         "list",
@@ -576,11 +690,16 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "defun",
         "getfun",
         "repr",
+        "bin",
+        "oct",
+        "hex",
         "par",
         "#par",
         "I",
         "C",
-        "#C"
+        "#C",
+        "chr",
+        "ord",
     ];
     for Str:name in names {
         $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];

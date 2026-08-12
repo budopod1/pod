@@ -24,6 +24,9 @@ FnPattern {}
 @extends Pattern;
 TxtPattern {}
 
+@extends Pattern;
+StringPattern {}
+
 Bool#[$PodVal:val].matches[$Pattern:pattern] {
     given pattern as NumberPattern:num_pattern {
         return (val#PodFloat?) || (val#PodInt?);
@@ -41,18 +44,11 @@ Bool#[$PodVal:val].matches[$Pattern:pattern] {
         return !!(val#$PodFn?);
     } given pattern as TxtPattern:txt_pattern {
         return (!!(val#PodStr?)) || (!!(val#PodSymbol?));
+    } given pattern as StringPattern:str_pattern {
+        return !!(val#PodStr?);
     } else {
         abort;
     };
-}
-
-Bool#[[$PodVal]:vals].all_match[$Pattern:pattern] {
-    for $PodVal:val in vals {
-        if ![val].matches[pattern] {
-            return false;
-        };
-    };
-    return true;
 }
 
 Str#[$Pattern:pattern].message {
@@ -68,9 +64,20 @@ Str#[$Pattern:pattern].message {
         return "function";
     } given pattern as TxtPattern:txt_pattern {
         return "symbol or string";
+    } given pattern as StringPattern:str_pattern {
+        return "string";
     } else {
         abort;
     };
+}
+
+Bool#[[$PodVal]:vals].all_match[$Pattern:pattern] {
+    for $PodVal:val in vals {
+        if ![val].matches[pattern] {
+            return false;
+        };
+    };
+    return true;
 }
 
 #require [$PodVal:val] matches [$Pattern:pattern] {
