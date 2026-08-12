@@ -301,14 +301,16 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         return result;
     }
     ("while") {
-        require between [2] and [2] in [args];
+        require between [1] and [2] in [args];
         while true {
             $PodVal:cond = run [args[0]] with [[$PodVal] []] in [stack];
             if ![cond].is_truthy {
                 break;
             };
-
-            run [args[1]] with [[$PodVal] [cond]] in [stack];
+            
+            if [args].len >= 2 {
+                run [args[1]] with [[$PodVal] [cond]] in [stack];
+            };
         };
     }
     ("inputline") {
@@ -470,10 +472,6 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
             set var [star_name]
                 in [frame]
                 to [PodArray [[vals].slice_from[val_idx]]];
-        } else {
-            if optional_val_count > 0 {
-                temp error msg: ["Too many values for specified assignees"];
-            };
         };
     }
     ("car") {

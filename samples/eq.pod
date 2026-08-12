@@ -1,4 +1,10 @@
 set input = "y"
 while {= $input "y"} {
+    print "Loop 1/2"
     set input = (inputline "Continue (y/n)? ")
+}
+
+while {
+    print "Loop 2/2"
+    != (inputline "Continue 2 (y/n)? ") "n" 
 }
