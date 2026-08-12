@@ -248,6 +248,24 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
     ("not") {
         return pod bool [![args[0]].is_truthy];
     }
+    ("any") {
+        for $PodVal:val in args {
+            if [val].is_truthy {
+                return pod bool [true];
+            };
+        };
+        return pod bool [false];
+    }
+    ("all") {
+        for $PodVal:val in args {
+            if ![val].is_truthy {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
+    }
+    // TODO: some/every are equivalent to any/all except they take
+    // an iterable and (optionally) a mapping function
     ("print") {
         Str:result = [""].clone;
         for L:i enumerating args {
@@ -342,7 +360,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         Str:msg = "Cannot convert {} to int" % [args[0]].stringify_type;
         temp error msg: [msg];
     }
-    ("array") {
+    ("arr") {
         return PodArray [args];
     }
     ("cons") {
@@ -539,6 +557,8 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "is",
         "isnt",
         "not",
+        "any",
+        "all",
         "print",
         "!",
         "forever",
@@ -549,7 +569,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "symbol",
         "float",
         "int",
-        "array",
+        "arr",
         "cons",
         "list",
         "set",

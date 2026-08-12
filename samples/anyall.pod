@@ -1,0 +1,7 @@
+set l1 = (list $f $t $f)
+set l2 = (list $t $t $t)
+
+print (any $f $t $f) (all $f $t $f)
+print (any $t) (all $t)
+print (any $f $f) (all $f $f)
+print (any) (all)

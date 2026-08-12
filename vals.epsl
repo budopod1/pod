@@ -214,7 +214,7 @@ Str#[$PodVal:val].stringify {
             [elem_str].append[' '];
             [elem_str].extend[[elem].stringify];
         };
-        return "(array{})" % elem_str;
+        return "(arr{})" % elem_str;
     } given val as PodOpaque:opaque {
         return ["#"] + [opaque.name];
     } given val as PodError:error {
@@ -288,10 +288,8 @@ Bool#[$PodVal:a] equals [$PodVal:b] {
         };
         return false;
     } given a as PodBool:bool_a {
-        given b as PodBool:bool_b {
-            return bool_a.val == bool_b.val;
-        };
-        return false;
+        // bools are uniqued
+        return a == b;
     } given a as PodNil:nil_a {
         return !!(b#PodNil?);
     } given a as PodPair:pair_a {

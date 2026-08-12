@@ -29,8 +29,8 @@ PodFrame {
 PodFrame#make root frame {
     [PodFrameVar]:builtin_vars = [PodFrameVar] [
         PodFrameVar ["nil", pod nil],
-        PodFrameVar ["true", pod bool [true]],
-        PodFrameVar ["false", pod bool [false]],
+        PodFrameVar ["t", pod bool [true]],
+        PodFrameVar ["f", pod bool [false]],
     ];
     return PodFrame [
         null,
