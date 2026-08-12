@@ -349,6 +349,13 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         require between [2] and [2] in [args];
         return PodPair [args[0], args[1]];
     }
+    ("list") {
+        $PodVal:result = pod nil;
+        for $PodVal:val in args step -1 {
+            result = PodPair [val, result];
+        };
+        return result;
+    }
     ("set") {
         require between [3] and [null] in [args];
 
@@ -489,7 +496,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         require between [1] and [1] in [args];
         return PodStr [[args[0]].stringify];
     }
-    ("par") {
+    ("par") { // partial application
         require between [1] and [null] in [args];
         return PodBuiltinFn ["#par", args];
     }
@@ -497,6 +504,17 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         $PodVal:fn = builtin.data[0];
         [$PodVal]:full_args = [[builtin.data].slice_from[1]] + [args];
         return run [fn] with [full_args] in [stack];
+    }
+    ("I") { // the identity function
+        require between [1] and [1] in [args];
+        return args[0];
+    }
+    ("C") { // creates a constant function
+        require between [1] and [1] in [args];
+        return PodBuiltinFn ["#C", args];
+    }
+    ("#C") {
+        return builtin.data[0];
     }
     {
         abort ["{} is not a builtin" % builtin.name];
@@ -533,6 +551,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "int",
         "array",
         "cons",
+        "list",
         "set",
         "car",
         "cdr",
@@ -541,6 +560,9 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "repr",
         "par",
         "#par",
+        "I",
+        "C",
+        "#C"
     ];
     for Str:name in names {
         $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];
