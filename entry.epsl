@@ -11,24 +11,18 @@
 %import vals;
 %import ast;
 
-#CLI error [Str:msg] {
-    print["pod: "];
-    println[msg];
-    exit with status [1];
-}
-
-PodFnExpr#parse txt [Str:txt] path: [Path:path] {
+PodFnExpr?#parse txt [Str:txt] path: [Path:path] {
     TokenizationResult:tokenization_result = tokenize [txt];
     if tokenization_result.errors {
         report errors [bundle [tokenization_result] txt: [txt] path: [path]];
-        exit with status [1];
+        return null;
     };
 
     TokenizationResult:grouping_result =
         group tokens [tokenization_result.tokens];
     if grouping_result.errors {
         report errors [bundle [grouping_result] txt: [txt] path: [path]];
-        exit with status [1];
+        return null;
     };
 
     ParseState:parse_state = ParseState [
@@ -39,9 +33,10 @@ PodFnExpr#parse txt [Str:txt] path: [Path:path] {
     $ErrorBundle:parse_errors = bundle [parse_state.errors]
         txt: [txt] path: [path];
     if report errors [parse_errors] {
-        exit with status [1];
+        return null;
     };
-    return [maybe_fn_expr].unwrap;
+
+    return maybe_fn_expr;
 }
 
 PodFnExpr#parse file [Path:path] {
@@ -51,7 +46,12 @@ PodFnExpr#parse file [Path:path] {
     };
     Str:txt = [read_result.txt].unwrap;
 
-    return parse txt [txt] path: [path];
+    given parse txt [txt] path: [path] as PodFnExpr:fn_expr {
+        return fn_expr;
+    } else {
+        exit with status [1];
+        abort;
+    };
 }
 
 #run file [Path:path] args: [[Str]:args] {
@@ -65,19 +65,51 @@ PodFnExpr#parse file [Path:path] {
         [file_args].append[PodStr [arg]];
     };
 
-    run [fn] with [file_args] in [stack];
+    run clear [fn] with [file_args] in [stack];
+}
+
+#run REPL {
+    Path:path = Path_from ["<REPL>"];
+
+    PodStack:stack = make new stack;
+    PodClearFn:fake_fn = PodClearFn [
+        [PodSExpr] [], [stack.frames].at[-1]
+    ];
+    PodFrame:frame = PodFrame [
+        fake_fn,
+        true,
+        "repl",
+        [PodFrameVar] [],
+        [$PodVal] []
+    ];
+
+    while true {
+        print["> "];
+        Str:input = read_input_line;
+
+        PodFnExpr?:maybe_fn_expr = parse txt [input] path: [path];
+        if !maybe_fn_expr {
+            continue;
+        };
+
+        $PodVal:result = pod nil;
+        for PodSExpr:expr in [maybe_fn_expr].unwrap.code {
+            result = evaluate [expr] in [stack];
+        };
+        println[[result].stringify];
+    };
 }
 
 Z#main {
     [Str]:argv = get argv;
 
-    if [argv].len < 2 {
-        CLI error ["Expected at least one argument"];
+    given argv[1]? as Str:filename {
+        Path:entry_path = Path_from [filename];
+
+        run file [entry_path] args: [[argv].slice_from[1]];
+    } else {
+        run REPL;
     };
-
-    Path:entry_path = Path_from [argv[1]];
-
-    run file [entry_path] args: [[argv].slice_from[1]];
 
     return 0;
 }
