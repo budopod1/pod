@@ -1,4 +1,5 @@
 %import frames;
+%import eval;
 %import ast;
 
 // @sealed;
@@ -75,8 +76,8 @@ PodFn {}
 @extends PodFn;
 // 'clear' as in 'transparent', because the source can be viewed
 PodClearFn {
-    [PodSExpr]:code,
-    PodFrame:parent_frame
+    PodFnExpr:src,
+    $PodFrame:parent_frame
 }
 
 @extends PodFn;

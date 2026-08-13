@@ -54,34 +54,31 @@ PodFnExpr#parse file [Path:path] {
     };
 }
 
-#run file [Path:path] args: [[Str]:args] {
+#run file [Path:path] args: [[Str]:str_args] {
     PodFnExpr:fn_expr = parse file [path];
 
     PodStack:stack = make new stack;
-    PodClearFn:fn = PodClearFn [fn_expr.code, [stack.frames].at[-1]];
+    PodClearFn:fn = PodClearFn [fn_expr, [stack.frames].at[-1]];
 
     [$PodVal]:file_args = [$PodVal] [];
-    for Str:arg in args {
+    for Str:arg in str_args {
         [file_args].append[PodStr [arg]];
     };
 
-    run clear [fn] with [file_args] in [stack];
+    $PodFrame:frame = make clear frame [fn] args: [file_args];
+    run frame [frame] in [stack];
 }
 
 #run REPL {
     Path:path = Path_from ["<REPL>"];
 
     PodStack:stack = make new stack;
-    PodClearFn:fake_fn = PodClearFn [
-        [PodSExpr] [], [stack.frames].at[-1]
+    PodClearFn:fn = PodClearFn [
+        PodFnExpr [[PodSExpr] [], null],
+        [stack.frames].at[-1]
     ];
-    PodFrame:frame = PodFrame [
-        fake_fn,
-        true,
-        "repl",
-        [PodFrameVar] [],
-        [$PodVal] []
-    ];
+    ClearFnPodFrame:frame = make clear frame [fn]
+        args: [[$PodVal] []];
 
     while true {
         print["> "];
@@ -92,10 +89,11 @@ PodFnExpr#parse file [Path:path] {
             continue;
         };
 
-        $PodVal:result = pod nil;
-        for PodSExpr:expr in [maybe_fn_expr].unwrap.code {
-            result = evaluate [expr] in [stack];
-        };
+        fn.src = [maybe_fn_expr].unwrap;
+        frame.pc = 0;
+        frame.val_stack = [$PodVal] [];
+
+        $PodVal:result = run frame [frame] in [stack];
         println[[result].stringify];
     };
 }

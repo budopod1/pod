@@ -35,7 +35,10 @@ PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
     return PodStr [result];
 }
 
-$PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:stack] {
+$PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    $PodFrame:parent_frame = [stack.frames].at[-2];
     switch builtin.name
     ("+") {
         require [args] all match [NumberPattern []];
@@ -353,43 +356,64 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
             [result].extend[[args[i]].get_string];
         };
         println[result];
+        return pod nil;
     }
     ("!") {
-        PodFrame:frame = [stack.frames].at[-1];
-        frame.important = true;
+        parent_frame.important = true;
         if args {
-            frame.label = [args[0]].get_string;
+            parent_frame.label = [args[0]].get_string;
         };
+        return pod nil;
     }
     ("forever") {
         require between [1] and [1] in [args];
-        while true {
-            run [args[0]] with [[$PodVal] []] in [stack];
-        };
+        $PodFrame:sub_frame = make frame in [stack]
+            of [args[0]] args: [[$PodVal] []];
+        [stack.frames].append[sub_frame];
+        return null;
     }
     ("if") {
+        given frame.recieved as $PodVal:recieved {
+            return recieved;
+        };
         require between [2] and [null] in [args];
         if [args].len > 2 {
             abort [">2 args to if not implemented"];
         };
-        $PodVal:result = pod nil;
         if [args[0]].is_truthy {
-            result = run [args[1]] with [[$PodVal] [args[0]]] in [stack];
+            $PodFrame:sub_frame = make frame in [stack]
+                of [args[1]] args: [[$PodVal] [args[0]]];
+            [stack.frames].append[sub_frame];
+            return null;
+        } else {
+            return pod nil;
         };
-        return result;
     }
     ("while") {
-        require between [1] and [2] in [args];
-        while true {
-            $PodVal:cond = run [args[0]] with [[$PodVal] []] in [stack];
-            if ![cond].is_truthy {
-                break;
+        given frame.data as WhileBuiltinData:data {
+            if data.cond_ran {
+                $PodVal:cond_val = [frame.recieved].unwrap;
+                if ![cond_val].is_truthy {
+                    return pod nil;
+                };
+                if [args].len >= 2 {
+                    $PodFrame:sub_frame = make frame in [stack]
+                        of [args[1]] args: [[$PodVal] [cond_val]];
+                    [stack.frames].append[sub_frame];
+                    data.cond_ran = false;
+                    return null;
+                };
             };
-            
-            if [args].len >= 2 {
-                run [args[1]] with [[$PodVal] [cond]] in [stack];
-            };
+
+            $PodFrame:sub_frame = make frame in [stack]
+                of [args[0]] args: [[$PodVal] []];
+            [stack.frames].append[sub_frame];
+            data.cond_ran = true;
+            return null;
         };
+        require between [1] and [2] in [args];
+        frame.data = WhileBuiltinData [false];
+        return null;
     }
     ("inputline") {
         Str:result = [""].clone;
@@ -423,6 +447,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
         Str:msg = "Cannot convert {} to float" % [args[0]].stringify_type;
         temp error msg: [msg];
+        abort;
     }
     ("int") {
         require between [1] and [1] in [args];
@@ -439,6 +464,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         };
         Str:msg = "Cannot convert {} to int" % [args[0]].stringify_type;
         temp error msg: [msg];
+        abort;
     }
     ("bool") {
         require between [1] and [1] in [args];
@@ -467,7 +493,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
             Str:name = [args[0]#PodSymbol?].unwrap.str;
             if [name].at[-1] != '*' {
                 set var [name]
-                    in [[stack.frames].at[-1]]
+                    in [parent_frame]
                     to [args[2]];
                 return pod nil;
             };
@@ -513,7 +539,6 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
 
         L:val_idx = 0;
 
-        PodFrame:frame = [stack.frames].at[-1];
         for Str:name in pre_star_names {
             if [name].at[-1] == '?' {
                 $PodVal:val = pod nil;
@@ -523,11 +548,11 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
                     optional_val_count -= 1;
                 };
                 set var [[name].slice[0][[name].len-1]]
-                    in [frame]
+                    in [parent_frame]
                     to [val];
             } else {
                 set var [name]
-                    in [frame]
+                    in [parent_frame]
                     to [vals[val_idx]];
                 val_idx += 1;
             };
@@ -541,11 +566,11 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
                     optional_val_count -= 1;
                 };
                 set var [[name].slice[0][[name].len-1]]
-                    in [frame]
+                    in [parent_frame]
                     to [val];
             } else {
                 set var [name]
-                    in [frame]
+                    in [parent_frame]
                     to [[vals].pop_end];
             };
         };
@@ -555,6 +580,8 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
                 in [frame]
                 to [PodArray [[vals].slice_from[val_idx]]];
         };
+
+        return pod nil;
     }
     ("car") {
         require between [1] and [1] in [args];
@@ -579,6 +606,7 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         register fn [[args[1]#$PodFn?].unwrap]
             under [[args[0]].get_string]
             in [stack];
+        return pod nil;
     }
     ("getfun") {
         require between [1] and [1] in [args];
@@ -610,7 +638,30 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
     ("#par") {
         $PodVal:fn = builtin.data[0];
         [$PodVal]:full_args = [[builtin.data].slice_from[1]] + [args];
-        return run [fn] with [full_args] in [stack];
+        $PodFrame:frame = make frame in [stack] of [fn] args: [full_args];
+        replace top of [stack] with [frame];
+        return null;
+    }
+    ("compose") {
+        require between [1] and [null] in [args];
+        return PodBuiltinFn ["#compose", args];
+    }
+    ("#compose") {
+        given frame.data as ComposeBuiltinData:data {
+            $PodVal:val = [frame.recieved].unwrap;
+            if !data.fns {
+                return val;
+            };
+            $PodFrame:sub_frame = make frame in [stack]
+                of [[data.fns].pop_end] args: [[$PodVal] [val]];
+            [stack.frames].append[sub_frame];
+        } else {
+            frame.data = ComposeBuiltinData [builtin.data];
+            $PodFrame:sub_frame = make frame in [stack]
+                of [[builtin.data].pop_end] args: [args];
+            [stack.frames].append[sub_frame];
+        };
+        return null;
     }
     ("I") { // the identity function
         require between [1] and [1] in [args];
@@ -629,6 +680,8 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         Str:str = [args[0]].get_string;
         given str[0]? as Byte:first_byte {
             return PodInt [first_byte];
+        } else {
+            return pod nil;
         };
     }
     ("chr") {
@@ -646,7 +699,6 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
     {
         abort ["{} is not a builtin" % builtin.name];
     };
-    return pod nil;
 }
 
 #register builtin fns [PodStack:stack] {
@@ -695,6 +747,8 @@ $PodVal#run builtin [PodBuiltinFn:builtin] with [[$PodVal]:args] in [PodStack:st
         "hex",
         "par",
         "#par",
+        "compose",
+        "#compose",
         "I",
         "C",
         "#C",

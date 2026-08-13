@@ -7,78 +7,209 @@
     abort ["RUNTIME ERROR: {}" % msg];
 }
 
-$PodVal#evaluate [$PodExpr:expr] in [PodStack:stack] {
-    given expr as PodSExpr:sexpr {
-        return evaluate [sexpr] in [stack];
-    } given expr as PodFnExpr:fn_expr {
-        return PodClearFn [fn_expr.code, [stack.frames].at[-1]];
+@super;
+VMInstr {}
+
+@extends VMInstr;
+LiteralVMInstr {
+    $PodVal:val
+}
+
+@extends VMInstr;
+VarVMInstr {
+    Str:name
+}
+
+@extends VMInstr;
+MakeFnVMInstr {
+    PodFnExpr:src
+}
+
+@extends VMInstr;
+CallFnVMInstr {
+    W:arg_count,
+    [W]:star_args
+}
+
+#compile expr [$PodExpr:expr] to [[$VMInstr]:instrs] {
+    given expr as PodLiteralExpr:literal_expr {
+        [instrs].append[LiteralVMInstr [literal_expr.val]];
     } given expr as PodVarExpr:var_expr {
-        return lookup [var_expr.name] in [[stack.frames].at[-1]];
-    } given expr as PodLiteralExpr:literal_expr {
-        return literal_expr.val;
+        [instrs].append[VarVMInstr [var_expr.name]];
+    } given expr as PodFnExpr:fn_expr {
+        [instrs].append[MakeFnVMInstr [fn_expr]];
+    } given expr as PodSExpr:sexpr {
+        compile sexpr [sexpr] to [instrs];
     } else {
         abort;
     };
 }
 
-$PodVal#run [$PodVal:val] with [[$PodVal]:args] in [PodStack:stack] {
-    given val as $PodFn:fn {
-        return run [fn] with [args] in [stack];
-    } given val as PodSymbol:sym {
-        given lookup registered fn [sym.str] in [stack] as $PodFn:fn {
-            return run [fn] with [args] in [stack];
-        } else {
-            abort ["cmd function to run '{}' not implemented" % sym.str];
-        };
-    } else {
-        temp error msg: ["cannot execute {}" % [val].stringify_type];
-        abort;
-    };
-}
-
-$PodVal#evaluate [PodSExpr:sexpr] in [PodStack:stack] {
+#compile sexpr [PodSExpr:sexpr] to [[$VMInstr]:instrs] {
     if sexpr.pipeline {
-        abort ["pipeline is not implemented"];
+        abort ["pipeline not supported"];
     };
-    [$PodVal]:expanded_args = [$PodVal] [];
-    for $PodArg:arg in sexpr.args {
+    [W]:star_args = [W] [];
+    for W:i enumerating sexpr.args {
+        $PodArg:arg = sexpr.args[i];
         given arg as $PodExpr:expr {
-            [expanded_args].append[evaluate [expr] in [stack]];
-        } given arg as PodSpreadArg:spread {
-            abort ["spread arg not implemented"];
+            compile expr [expr] to [instrs];
+        } given arg as PodSpreadArg:spread_arg {
+            compile expr [spread_arg.expr] to [instrs];
+            [star_args].append[i];
         } else {
             abort;
         };
     };
-    if !expanded_args {
-        temp error msg: ["at least one argument is required"];
-    };
-    $PodVal:fn = [expanded_args].pop[0];
-    return run [fn] with [expanded_args] in [stack];
-}
-
-$PodVal#run clear [PodClearFn:fn] with [[$PodVal]:args] in [PodStack:stack] {
-    [stack.frames].append[PodFrame [
-        fn,
-        false,
-        null,
-        [PodFrameVar] [],
-        args    
+    [instrs].append[CallFnVMInstr [
+        [sexpr.args].len#W, star_args
     ]];
-    $PodVal?:result = null;
-    for PodSExpr:line in fn.code {
-        result = evaluate [line] in [stack];
-    };
-    [stack.frames].pop_end;
-    return [result].unwrap;
 }
 
-$PodVal#run [$PodFn:fn] with [[$PodVal]:args] in [PodStack:stack] {
-    given fn as PodClearFn:clear {
-        return run clear [clear] with [args] in [stack];
-    } given fn as PodBuiltinFn:builtin {
-        return run builtin [builtin] with [args] in [stack];
+[$VMInstr]#compile fn [PodClearFn:fn] {
+    PodFnExpr:src = fn.src;
+    given src.instrs as [$VMInstr]:known_instrs {
+        return known_instrs;
+    };
+    [$VMInstr]:instrs = [$VMInstr] [];
+    for PodSExpr:line in src.lines {
+        compile sexpr [line] to [instrs];
+    };
+    src.instrs = instrs;
+    return instrs;
+}
+
+#pop frame in [PodStack:stack] returning [$PodVal:val] {
+    [stack.frames].pop_end;
+    [stack.frames].at[-1].recieved = val;
+}
+
+$PodFrame#make frame in [PodStack:stack] of [$PodFn:fn] args: [[$PodVal]:args] {
+    $PodFrame?:maybe_frame = null;
+    given fn as PodClearFn:clear_fn {
+        maybe_frame = make clear frame [clear_fn] args: [args];
+    } given fn as PodBuiltinFn:builtin_fn {
+        maybe_frame = BuiltinPodFrame [
+            false,
+            null,
+            [PodFrameVar] [],
+            args,
+            null,
+            builtin_fn,
+            null
+        ];
     } else {
         abort;
     };
+
+    return [maybe_frame].unwrap;
+}
+
+$PodFrame#make frame in [PodStack:stack] using [[$PodVal]:args] {
+    if !args {
+        temp error msg: ["at least one argument is required"];
+    };
+    
+    return make frame in [stack] of [args[0]] args: [[args].slice_from[1]];
+}
+
+$PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:args] {
+    $PodFn?:maybe_fn = null;
+    given fn_val as $PodFn:fn {
+        maybe_fn = fn;
+    } given fn_val as PodSymbol:sym {
+        given lookup registered fn [sym.str] in [stack] as $PodFn:fn {
+            maybe_fn = fn;
+        } else {
+            abort ["cmd function to run '{}' not implemented" % sym.str];
+        };
+    } else {
+        temp error msg: ["cannot execute {}" % [fn_val].stringify_type];
+        abort;
+    };
+
+    $PodFn:fn = [maybe_fn].unwrap;
+    return make frame in [stack] of [fn] args: [args];
+}
+
+#execute [$VMInstr:instr] on [ClearFnPodFrame:clear_frame] in [PodStack:stack] {
+    [$PodVal]:val_stack = clear_frame.val_stack;
+    given instr as LiteralVMInstr:literal_instr {
+        [val_stack].append[literal_instr.val];
+    } given instr as VarVMInstr:var_instr {
+        [val_stack].append[
+            lookup [var_instr.name] in [[stack.frames].at[-1]]
+        ];
+    } given instr as MakeFnVMInstr:make_fn_instr {
+        [val_stack].append[
+            PodClearFn [make_fn_instr.src, [stack.frames].at[-1]]
+        ];
+    } given instr as CallFnVMInstr:call_fn_instr {
+        W:arg_count = call_fn_instr.arg_count;
+
+        [$PodVal]:expanded_vals = [$PodVal] [];
+        for W:i to arg_count {
+            $PodVal:val = val_stack[[val_stack].len - arg_count + i];
+            if [call_fn_instr.star_args].index_of[i] {
+                abort ["arg spreading not implemented"];
+            } else {
+                [expanded_vals].append[val];
+            };
+        };
+
+        for W:i to arg_count {
+            [val_stack].pop_end;
+        };
+
+        $PodFrame:frame = make frame in [stack] using [expanded_vals];
+        [stack.frames].append[frame];
+    };
+}
+
+#run cycle in [PodStack:stack] {
+    $PodFrame:frame = [stack.frames].at[-1];
+    given frame as ClearFnPodFrame:clear_frame {
+        given clear_frame.recieved as $PodVal:recieved {
+            [clear_frame.val_stack].append[recieved];
+        };
+
+        [$VMInstr]:instrs = compile fn [clear_frame.fn];
+        W:pc = clear_frame.pc;
+
+        if pc == [instrs].len {
+            $PodVal:ret_val = pod nil;
+            if clear_frame.val_stack {  
+                ret_val = [clear_frame.val_stack].pop_end;
+            };
+            pop frame in [stack] returning [ret_val];
+            return;
+        };
+
+        $VMInstr:instr = instrs[pc];
+        execute [instr] on [clear_frame] in [stack];
+
+        pc += 1;
+        clear_frame.pc = pc;
+    } given frame as BuiltinPodFrame:builtin_frame {
+        given builtin cycle of [builtin_frame] in [stack]
+        as $PodVal:ret_val {
+            pop frame in [stack] returning [ret_val];
+        };
+    } else {
+        abort ["Cannot run cycle in frame {}" % frame];
+    };
+    frame.recieved = null;
+}
+
+$PodVal#run frame [$PodFrame:frame] in [PodStack:stack] {
+    $PodFrame:top_frame = [stack.frames].at[-1];
+    [stack.frames].append[frame];
+
+    while !top_frame.recieved {
+        run cycle in [stack];
+    };
+
+    $PodVal:ret_val = [top_frame.recieved].unwrap;
+    top_frame.recieved = null;
+    return ret_val;
 }

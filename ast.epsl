@@ -1,3 +1,4 @@
+%import eval;
 %import vals;
 
 @super;
@@ -17,7 +18,8 @@ PodSExpr {
 
 @extends PodExpr;
 PodFnExpr {
-    [PodSExpr]:code
+    [PodSExpr]:lines,
+    [$VMInstr]?:instrs,
 }
 
 @extends PodExpr;
@@ -32,5 +34,5 @@ PodLiteralExpr {
 
 @extends PodArg;
 PodSpreadArg {
-    $PodExpr:val
+    $PodExpr:expr
 }

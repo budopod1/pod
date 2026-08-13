@@ -1,0 +1,17 @@
+set n = (int (inputline "Number? "))
+
+set i = 2
+set prime = $t
+while {< $i $n} {
+    if (not (% $n $i)) {
+        set prime = $f
+    }
+    set i = (+ 1 $i)
+}
+
+set msg = "not prime"
+if $prime {
+    set msg = "prime"
+}
+
+print $msg

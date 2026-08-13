@@ -8,7 +8,7 @@ PodRegisteredFn {
 }
 
 PodStack {
-    [PodFrame]:frames,
+    [$PodFrame]:frames,
     [PodRegisteredFn]:fns
 }
 
@@ -17,27 +17,69 @@ PodFrameVar {
     $PodVal:val
 }
 
+@super;
 PodFrame {
-    PodClearFn?:fn,
     Bool:important,
     Str?:label,
     [PodFrameVar]:vars,
-    [$PodVal]:arg_vals
-    // maybe error handling info?
+    [$PodVal]:arg_vals,
+    $PodVal?:recieved,
 }
 
-PodFrame#make root frame {
+@extends PodFrame;
+RootPodFrame {}
+
+@extends PodFrame;
+BuiltinPodFrame {
+    PodBuiltinFn:builtin,
+    $BuiltinData?:data
+}
+
+@super;
+BuiltinData {}
+
+@extends BuiltinData;
+WhileBuiltinData {
+    Bool:cond_ran
+}
+
+@extends BuiltinData;
+ComposeBuiltinData {
+    [$PodVal]:fns
+}
+
+@extends PodFrame;
+ClearFnPodFrame {
+    PodClearFn:fn,
+    W:pc,
+    [$PodVal]:val_stack
+}
+
+$PodFrame#make root frame {
     [PodFrameVar]:builtin_vars = [PodFrameVar] [
         PodFrameVar ["nil", pod nil],
         PodFrameVar ["t", pod bool [true]],
         PodFrameVar ["f", pod bool [false]],
     ];
-    return PodFrame [
-        null,
+    return RootPodFrame [
         true,
         "top",
         builtin_vars,
-        [$PodVal] []
+        [$PodVal] [],
+        null,
+    ];
+}
+
+ClearFnPodFrame#make clear frame [PodClearFn:fn] args: [[$PodVal]:args] {
+    return ClearFnPodFrame [
+        false,
+        null,
+        [PodFrameVar] [],
+        args,
+        null,
+        fn,
+        0,
+        [$PodVal] [],
     ];
 }
 
@@ -53,29 +95,34 @@ PodFrame#make root frame {
 
 PodStack#make new stack {
     PodStack:stack = PodStack [
-        [PodFrame] [make root frame],
+        [$PodFrame] [make root frame],
         [PodRegisteredFn] []
     ];
     register builtin fns [stack];
     return stack;
 }
 
-PodFrameVar?#get var [Str:name] in [PodFrame:frame] {
+#replace top of [PodStack:stack] with [$PodFrame:frame] {
+    [stack.frames].pop_end;
+    [stack.frames].append[frame];
+}
+
+PodFrameVar?#get var [Str:name] in [$PodFrame:frame] {
     while true {
         for PodFrameVar:var in frame.vars {
             if [var.name] equals [name] {
                 return var;
             };
         };
-        given frame.fn as PodClearFn:fn {
-            frame = fn.parent_frame;
+        given frame as ClearFnPodFrame:clear_frame {
+            frame = clear_frame.fn.parent_frame;
         } else {
             return null;
         };
     };
 }
 
-$PodVal#lookup [Str:name] in [PodFrame:frame] {
+$PodVal#lookup [Str:name] in [$PodFrame:frame] {
     if [name] equals ["@"] {
         return PodArray [frame.arg_vals];
     };
@@ -96,7 +143,7 @@ $PodVal#lookup [Str:name] in [PodFrame:frame] {
     };
 }
 
-#set var [Str:name] in [PodFrame:frame] to [$PodVal:val] {
+#set var [Str:name] in [$PodFrame:frame] to [$PodVal:val] {
     given get var [name] in [frame] as PodFrameVar:var {
         var.val = val;
     } else {

@@ -80,6 +80,7 @@ PodFnExpr?#parse fn body [ParseState:state] {
     if ![state].require_more why: ["Expected S expression"] {
         return null;
     };
+    
     [PodSExpr]:code = [PodSExpr] [];
     while ![state].is_at_end {
         if [[state].cur_id].terminates_line {
@@ -114,5 +115,6 @@ PodFnExpr?#parse fn body [ParseState:state] {
         };
         [state].consume; // eat the '\n' or ';'
     };
-    return PodFnExpr [code];
+
+    return PodFnExpr [code, null];
 }
