@@ -38,16 +38,6 @@ BuiltinPodFrame {
 @super;
 BuiltinData {}
 
-@extends BuiltinData;
-WhileBuiltinData {
-    Bool:cond_ran
-}
-
-@extends BuiltinData;
-ComposeBuiltinData {
-    [$PodVal]:fns
-}
-
 @extends PodFrame;
 ClearFnPodFrame {
     PodClearFn:fn,

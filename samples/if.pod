@@ -1,0 +1,11 @@
+set n = (int (inputline "n? "))
+
+if (< $n 0) {
+    print "n < 0"
+} elif {< $n 100} {
+    print "0 <= n < 100"
+} elif {< $n 200} {
+    print "100 <= n < 200"
+} else {
+    print "200 <= n"
+}
