@@ -383,6 +383,18 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
     }
 
+    ("abs") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [NumberPattern []];
+        if [args[0]].matches[IntPattern []] {
+            Z64:val = [args[0]] as int;
+            return PodInt [|[val]|];
+        } else {
+            R:val = [args[0]] as float;
+            return PodFloat [|[val]|];
+        };
+    }
+
     ("print") {
         Str:result = [""].clone;
         for L:i enumerating args {
@@ -513,6 +525,42 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         frame.data = WhileBuiltinData [false];
         return null;
     }
+    
+    ("return") {
+        require between [0] and [2] in [args];
+        $PodVal:ret_val = [args[0]?] || [pod nil];
+        Z:pop_count = 1;
+        given args[1]? as $PodVal:label_arg {
+            require [label_arg] matches [TxtPattern []];
+            Str:label = [label_arg].get_string;
+            while true {
+                $PodFrame:frame = [stack.frames].at[-pop_count];
+                if frame#RootPodFrame? {
+                    temp error msg: ["Label '{}' cannot be returned from" % label];
+                };
+                if [frame.label] equals [label#Str?] {
+                    break;
+                };
+                pop_count += 1;
+            };
+        } else {
+            while true {
+                $PodFrame:frame = [stack.frames].at[-pop_count];
+                if frame#RootPodFrame? {
+                    temp error msg: ["Cannot return from root frame"];
+                };
+                if frame.important {
+                    break;
+                };
+                pop_count += 1;
+            };
+        };
+        for Z:i to pop_count - 1 {
+            [stack.frames].pop_end;
+        };
+        pop frame in [stack] returning [ret_val];
+        return null;
+    }
 
     ("inputline") {
         Str:result = [""].clone;
@@ -590,6 +638,15 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             result = PodPair [val, result];
         };
         return result;
+    }
+
+    ("declare") {
+        require [args] all match [SymbolPattern []];
+        for $PodVal:arg in args {
+            Str:name = [args[0]#PodSymbol?].unwrap.str;
+            set var [name] in [parent_frame] to [pod nil];
+        };
+        return pod nil;
     }
 
     ("assign") {
@@ -857,11 +914,13 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "all",
         "min",
         "max",
+        "abs",
         "print",
         "!",
         "forever",
         "if",
         "while",
+        "return",
         "inputline",
         "str",
         "symbol",
@@ -871,6 +930,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "arr",
         "cons",
         "list",
+        "declare",
         "assign",
         "set",
         "car",

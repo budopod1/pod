@@ -97,6 +97,14 @@ PodStack#make new stack {
     [stack.frames].append[frame];
 }
 
+#pop frame in [PodStack:stack] returning [$PodVal:val] {
+    [stack.frames].pop_end;
+    if !stack.frames {
+        abort ["Illegally popped last frame"];
+    };
+    [stack.frames].at[-1].recieved = val;
+}
+
 PodFrameVar?#get var [Str:name] in [$PodFrame:frame] {
     while true {
         for PodFrameVar:var in frame.vars {

@@ -79,11 +79,6 @@ CallFnVMInstr {
     return instrs;
 }
 
-#pop frame in [PodStack:stack] returning [$PodVal:val] {
-    [stack.frames].pop_end;
-    [stack.frames].at[-1].recieved = val;
-}
-
 $PodFrame#make frame in [PodStack:stack] of [$PodFn:fn] args: [[$PodVal]:args] {
     $PodFrame?:maybe_frame = null;
     given fn as PodClearFn:clear_fn {

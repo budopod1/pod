@@ -66,6 +66,8 @@ PodFnExpr#parse file [Path:path] {
     };
 
     $PodFrame:frame = make clear frame [fn] args: [file_args];
+    frame.important = true;
+    frame.label = "prgm";
     run frame [frame] in [stack];
 }
 
@@ -79,6 +81,8 @@ PodFnExpr#parse file [Path:path] {
     ];
     ClearFnPodFrame:frame = make clear frame [fn]
         args: [[$PodVal] []];
+    frame.important = true;
+    frame.label = "repl";
 
     while true {
         print["> "];

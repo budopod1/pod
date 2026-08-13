@@ -1,0 +1,37 @@
+defun firstoddinlist {!
+    set list = $0
+    while {I $list} {
+        set val = (car $list)
+        if (% $val 2) {
+            return $val
+        }
+        set list = (cdr $list)
+    }
+}
+
+print "expected 7, got" (firstoddinlist (list 2 8 7 4 3))
+
+defun uselessreturn {!
+    return (+ 1 $0)
+}
+
+print "expected 2, got" (uselessreturn 1)
+
+defun deepret {! fn
+    set i total = $0 0
+    while {< $i 10} {! loop
+        set i = (+ $i 1)
+        if (= $i 2) {
+            return $total fn
+        } elif {= $i 7} {
+            # effectively skips this loop iteration
+            return $nil loop
+        }
+        set total = (+ $total $i)
+    }
+    (+ $total 100)
+}
+
+print "Expected deepret(0) = 1, got deepret(0) =" (deepret 0)
+print "Expected deepret(5) = 133, got deepret(5) =" (deepret 5)
+print "Expected deepret(8) = 119, got deepret(8) =" (deepret 8)
