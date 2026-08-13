@@ -667,6 +667,11 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         return result;
     }
 
+    ("typestr") {
+        require between [1] and [1] in [args];
+        return PodStr [[args[0]].stringify_type];
+    }
+
     ("declare") {
         require [args] all match [SymbolPattern []];
         for $PodVal:arg in args {
@@ -971,6 +976,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "arr",
         "cons",
         "list",
+        "typestr",
         "declare",
         "assign",
         "set",
