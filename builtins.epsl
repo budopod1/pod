@@ -147,6 +147,33 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
     }
 
+    ("^") {
+        require between [1] and [null] in [args];
+        require [args] all match [NumberPattern []];
+        Bool:int_result = [args].all_match[IntPattern []];
+        if int_result {
+            for $PodVal:exponent in args from 1 {
+                if [exponent] as int < 0 {
+                    int_result = false;
+                    break;
+                };
+            };
+        };
+        if int_result {
+            Z64:x = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                x = x ** [arg] as int#L;
+            };
+            return PodInt [x];
+        } else {
+            R:x = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                x = x ** [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+
     ("<") {
         if [args].len <= 1 {
             return pod bool [true];
@@ -827,6 +854,19 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         return null;
     }
 
+    ("rpar") { // reverse partial application
+        require between [1] and [null] in [args];
+        return PodBuiltinFn ["#rpar", args];
+    }
+
+    ("#rpar") {
+        $PodVal:fn = builtin.data[0];
+        [$PodVal]:full_args = [args] + [[builtin.data].slice_from[1]];
+        $PodFrame:sub_frame = make frame in [stack] of [fn] args: [full_args];
+        replace top of [stack] with [sub_frame];
+        return null;
+    }
+
     ("compose") {
         require between [1] and [null] in [args];
         return PodBuiltinFn ["#compose", args];
@@ -901,6 +941,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "/",
         "~/",
         "%",
+        "^",
         "<",
         ">",
         "<=",
@@ -943,6 +984,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "hex",
         "par",
         "#par",
+        "rpar",
+        "#rpar",
         "compose",
         "#compose",
         "I",
