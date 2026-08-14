@@ -1,6 +1,6 @@
 defun firstoddinlist {!
     set list = $0
-    while {I $list} {
+    while {_ $list} {
         set val = (car $list)
         if (% $val 2) {
             return $val

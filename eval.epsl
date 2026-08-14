@@ -85,9 +85,6 @@ $PodFrame#make frame in [PodStack:stack] of [$PodFn:fn] args: [[$PodVal]:args] {
         maybe_frame = make clear frame [clear_fn] args: [args];
     } given fn as PodBuiltinFn:builtin_fn {
         maybe_frame = BuiltinPodFrame [
-            false,
-            null,
-            [PodFrameVar] [],
             args,
             null,
             builtin_fn,
@@ -133,11 +130,11 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
         [val_stack].append[literal_instr.val];
     } given instr as VarVMInstr:var_instr {
         [val_stack].append[
-            lookup [var_instr.name] in [[stack.frames].at[-1]]
+            lookup [var_instr.name] in [clear_frame]
         ];
     } given instr as MakeFnVMInstr:make_fn_instr {
         [val_stack].append[
-            PodClearFn [make_fn_instr.src, [stack.frames].at[-1]]
+            PodClearFn [make_fn_instr.src, clear_frame]
         ];
     } given instr as CallFnVMInstr:call_fn_instr {
         W:arg_count = call_fn_instr.arg_count;
@@ -146,7 +143,11 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
         for W:i to arg_count {
             $PodVal:val = val_stack[[val_stack].len - arg_count + i];
             if [call_fn_instr.star_args].index_of[i] {
-                abort ["arg spreading not implemented"];
+                given val as PodArray:arr {
+                    [expanded_vals].extend[arr.elems];
+                } else {
+                    abort ["arg spreading with non arrays not implemented"];
+                };
             } else {
                 [expanded_vals].append[val];
             };

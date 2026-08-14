@@ -19,14 +19,20 @@ PodFrameVar {
 
 @super;
 PodFrame {
-    Bool:important,
-    Str?:label,
-    [PodFrameVar]:vars,
     [$PodVal]:arg_vals,
     $PodVal?:recieved,
 }
 
+@super;
 @extends PodFrame;
+LexicalPodFrame {
+    Bool:important,
+    Str?:label,
+    [PodFrameVar]:vars,
+    $LexicalPodFrame?:parent
+}
+
+@extends LexicalPodFrame;
 RootPodFrame {}
 
 @extends PodFrame;
@@ -38,35 +44,37 @@ BuiltinPodFrame {
 @super;
 BuiltinData {}
 
-@extends PodFrame;
+@extends LexicalPodFrame;
 ClearFnPodFrame {
     PodClearFn:fn,
     W:pc,
     [$PodVal]:val_stack
 }
 
-$PodFrame#make root frame {
+RootPodFrame#make root frame {
     [PodFrameVar]:builtin_vars = [PodFrameVar] [
         PodFrameVar ["nil", pod nil],
         PodFrameVar ["t", pod bool [true]],
         PodFrameVar ["f", pod bool [false]],
     ];
     return RootPodFrame [
+        [$PodVal] [],
+        null,
         true,
         "top",
         builtin_vars,
-        [$PodVal] [],
         null,
     ];
 }
 
 ClearFnPodFrame#make clear frame [PodClearFn:fn] args: [[$PodVal]:args] {
     return ClearFnPodFrame [
+        args,
+        null,
         false,
         null,
         [PodFrameVar] [],
-        args,
-        null,
+        fn.parent_frame,
         fn,
         0,
         [$PodVal] [],
@@ -105,22 +113,31 @@ PodStack#make new stack {
     [stack.frames].at[-1].recieved = val;
 }
 
-PodFrameVar?#get var [Str:name] in [$PodFrame:frame] {
+$LexicalPodFrame#top lexical frame in [PodStack:stack] {
+    for $PodFrame:frame in stack.frames step -1 {
+        given frame as $LexicalPodFrame:lexical_frame {
+            return lexical_frame;
+        };
+    };
+    abort ["Stack has no root frame"];
+}
+
+PodFrameVar?#get var [Str:name] in [$LexicalPodFrame:frame] {
     while true {
         for PodFrameVar:var in frame.vars {
             if [var.name] equals [name] {
                 return var;
             };
         };
-        given frame as ClearFnPodFrame:clear_frame {
-            frame = clear_frame.fn.parent_frame;
+        given frame.parent as $LexicalPodFrame:next_frame {
+            frame = next_frame;
         } else {
             return null;
         };
     };
 }
 
-$PodVal#lookup [Str:name] in [$PodFrame:frame] {
+$PodVal#lookup [Str:name] in [$LexicalPodFrame:frame] {
     if [name] equals ["@"] {
         return PodArray [frame.arg_vals];
     };
@@ -141,7 +158,7 @@ $PodVal#lookup [Str:name] in [$PodFrame:frame] {
     };
 }
 
-#set var [Str:name] in [$PodFrame:frame] to [$PodVal:val] {
+#set var [Str:name] in [$LexicalPodFrame:frame] to [$PodVal:val] {
     given get var [name] in [frame] as PodFrameVar:var {
         var.val = val;
     } else {

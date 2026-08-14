@@ -77,7 +77,7 @@ PodFn {}
 // 'clear' as in 'transparent', because the source can be viewed
 PodClearFn {
     PodFnExpr:src,
-    $PodFrame:parent_frame
+    $LexicalPodFrame:parent_frame
 }
 
 @extends PodFn;

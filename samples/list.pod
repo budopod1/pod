@@ -1,2 +1,2 @@
 defun give4 (C 4)
-print (list (I 1) 2 (give4 3))
+print (list (_ 1) 2 (give4 3))

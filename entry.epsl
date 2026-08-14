@@ -58,14 +58,14 @@ PodFnExpr#parse file [Path:path] {
     PodFnExpr:fn_expr = parse file [path];
 
     PodStack:stack = make new stack;
-    PodClearFn:fn = PodClearFn [fn_expr, [stack.frames].at[-1]];
+    PodClearFn:fn = PodClearFn [fn_expr, top lexical frame in [stack]];
 
     [$PodVal]:file_args = [$PodVal] [];
     for Str:arg in str_args {
         [file_args].append[PodStr [arg]];
     };
 
-    $PodFrame:frame = make clear frame [fn] args: [file_args];
+    ClearFnPodFrame:frame = make clear frame [fn] args: [file_args];
     frame.important = true;
     frame.label = "prgm";
     run frame [frame] in [stack];
@@ -77,7 +77,7 @@ PodFnExpr#parse file [Path:path] {
     PodStack:stack = make new stack;
     PodClearFn:fn = PodClearFn [
         PodFnExpr [[PodSExpr] [], null],
-        [stack.frames].at[-1]
+        top lexical frame in [stack]
     ];
     ClearFnPodFrame:frame = make clear frame [fn]
         args: [[$PodVal] []];
