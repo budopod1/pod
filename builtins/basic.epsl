@@ -1,0 +1,293 @@
+%import pattern;
+%import frames;
+%import eval;
+%import vals;
+
+$PodVal?#run basic builtin [BuiltinPodFrame:frame] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("+") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:x = 0;
+            for $PodVal:arg in args {
+                x += [arg] as int;
+            };
+            return PodInt [x];
+        } else {
+            R:x = 0;
+            for $PodVal:arg in args {
+                x += [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+
+    ("-") {
+        require between [1] and [null] in [args];
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:x = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                x -= [arg] as int;
+            };
+            return PodInt [x];
+        } else {
+            R:x = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                x -= [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+
+    (".") {
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:x = 1;
+            for $PodVal:arg in args {
+                x *= [arg] as int;
+            };
+            return PodInt [x];
+        } else {
+            R:x = 1;
+            for $PodVal:arg in args {
+                x *= [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+
+    ("/") {
+        require between [1] and [null] in [args];
+        require [args] all match [NumberPattern []];
+        R:x = [args[0]] as float;
+        for $PodVal:arg in args from 1 {
+            x /= [arg] as float;
+        };
+        return PodFloat [x];
+    }
+
+    ("~/") {
+        require between [1] and [null] in [args];
+        require [args] all match [IntPattern []];
+        Z64:x = [args[0]] as int;
+        for $PodVal:arg in args from 1 {
+            x = x ~/ [arg] as int;
+        };
+        return PodInt [x];
+    }
+
+    ("%") {
+        require between [1] and [null] in [args];
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:x = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                x %= [arg] as int;
+            };
+            return PodInt [x];
+        } else {
+            R:x = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                x %= [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+
+    ("^") {
+        require between [1] and [null] in [args];
+        require [args] all match [NumberPattern []];
+        Bool:int_result = [args].all_match[IntPattern []];
+        if int_result {
+            for $PodVal:exponent in args from 1 {
+                if [exponent] as int < 0 {
+                    int_result = false;
+                    break;
+                };
+            };
+        };
+        if int_result {
+            Z64:x = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                x = x ** [arg] as int#L;
+            };
+            return PodInt [x];
+        } else {
+            R:x = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                x = x ** [arg] as float;
+            };
+            return PodFloat [x];
+        };
+    }
+    ("<") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:last = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:current = [arg] as int;
+                if !(last < current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        } else {
+            R:last = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:current = [arg] as float;
+                if !(last < current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        };
+    }
+
+    (">") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:last = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:current = [arg] as int;
+                if !(last > current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        } else {
+            R:last = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:current = [arg] as float;
+                if !(last > current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        };
+    }
+
+    ("<=") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:last = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:current = [arg] as int;
+                if !(last <= current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        } else {
+            R:last = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:current = [arg] as float;
+                if !(last <= current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        };
+    }
+
+    (">=") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        require [args] all match [NumberPattern []];
+        if [args].all_match[IntPattern []] {
+            Z64:last = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:current = [arg] as int;
+                if !(last >= current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        } else {
+            R:last = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:current = [arg] as float;
+                if !(last >= current) {
+                    return pod bool [false];
+                };
+                last = current;
+            };
+            return pod bool [true];
+        };
+    }
+
+    ("=") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        $PodVal:first = args[0];
+        for $PodVal:val in args from 1 {
+            if !([first] equals [val]) {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
+    }
+
+    ("!=") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        $PodVal:first = args[0];
+        for $PodVal:val in args from 1 {
+            if [first] equals [val] {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
+    }
+
+    ("is") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        $PodVal:first = args[0];
+        for $PodVal:val in args from 1 {
+            if first != val {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
+    }
+
+    ("isnt") {
+        if [args].len <= 1 {
+            return pod bool [true];
+        };
+        $PodVal:first = args[0];
+        for $PodVal:val in args from 1 {
+            if first == val {
+                return pod bool [false];
+            };
+        };
+        return pod bool [true];
+    }
+
+    {
+        return null;
+    };
+}
