@@ -1,5 +1,8 @@
+%import linkreadline;
+
 %import astparser;
 %import tokenizer;
+%import inputline;
 %import parsing;
 %import iotools;
 %import grouper;
@@ -85,8 +88,7 @@ PodFnExpr#parse file [Path:path] {
     frame.label = "repl";
 
     while true {
-        print["> "];
-        Str:input = read_input_line;
+        Str:input = inputline["> "];
 
         PodFnExpr?:maybe_fn_expr = parse txt [input] path: [path];
         if !maybe_fn_expr {

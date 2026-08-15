@@ -1,5 +1,7 @@
 %import builtins.basic;
+%import builtins.datatypes;
 
+%import inputline;
 %import pattern;
 %import frames;
 %import eval;
@@ -134,20 +136,16 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
     $LexicalPodFrame:lexical_frame = top lexical frame in [stack];
-    given run basic builtin [frame] as $PodVal:direct_result {
-        return direct_result;
+    
+    given run basic builtin [frame] as $PodVal?:result {
+        return result;
     };
+
+    given run datatype builtin [frame] as $PodVal?:result {
+        return result;
+    };
+
     switch builtin.name
-    ("nilp") {
-        require between [1] and [1] in [args];
-        return pod bool [args[0] == pod nil];
-    }
-
-    ("nil~p") {
-        require between [1] and [1] in [args];
-        return pod bool [args[0] != pod nil];
-    }
-
     ("not") {
         return pod bool [![args[0]].is_truthy];
     }
@@ -413,79 +411,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             };
             [result].extend[[args[i]].get_string];
         };
-        print[result];
-        return PodStr [read_input_line];
-    }
-
-    ("str") {
-        require between [1] and [1] in [args];
-        return PodStr [[args[0]].get_string];
-    }
-
-    ("symbol") {
-        require between [1] and [1] in [args];
-        return PodSymbol [[args[0]].get_string];
-    }
-
-    ("float") {
-        require between [1] and [1] in [args];
-        if [args[0]].matches[NumberPattern []] {
-            return PodFloat [[args[0]] as float];
-        };
-        given args[0] as PodStr:str {
-            given parse_float[str.val] as R:val {
-                return PodFloat [val];
-            };
-            return pod nil;
-        };
-        Str:msg = "Cannot convert {} to float" % [args[0]].stringify_type;
-        temp error msg: [msg];
-        abort;
-    }
-
-    ("int") {
-        require between [1] and [1] in [args];
-        if [args[0]].matches[IntPattern []] {
-            return PodInt [[args[0]] as int];
-        } elif [args[0]].matches[NumberPattern []] {
-            return PodInt [[args[0]] as float#Z64];
-        };
-        given args[0] as PodStr:str {
-            given parse_int[str.val] as Z64:val {
-                return PodInt [val];
-            };
-            return pod nil;
-        };
-        Str:msg = "Cannot convert {} to int" % [args[0]].stringify_type;
-        temp error msg: [msg];
-        abort;
-    }
-
-    ("bool") {
-        require between [1] and [1] in [args];
-        return pod bool [[args[0]].is_truthy];
-    }
-
-    ("arr") {
-        return PodArray [args];
-    }
-
-    ("cons") {
-        require between [2] and [2] in [args];
-        return PodPair [args[0], args[1]];
-    }
-
-    ("list") {
-        $PodVal:result = pod nil;
-        for $PodVal:val in args step -1 {
-            result = PodPair [val, result];
-        };
-        return result;
-    }
-
-    ("typestr") {
-        require between [1] and [1] in [args];
-        return PodStr [[args[0]].stringify_type];
+        return PodStr [inputline[result]];
     }
 
     ("declare") {
@@ -569,19 +495,25 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("car") {
         require between [1] and [1] in [args];
+        $PodVal:val = args[0];
         given args[0] as PodPair:pair {
             return pair.car;
+        } given val as PodNil:nil {
+            return nil;
         } else {
-            abort ["car with non pair not implemented"];
+            abort ["car with {} not implemented" % [val].stringify_type];
         };
     }
 
     ("cdr") {
         require between [1] and [1] in [args];
-        given args[0] as PodPair:pair {
+        $PodVal:val = args[0];
+        given val as PodPair:pair {
             return pair.cdr;
+        } given val as PodNil:nil {
+            return nil;
         } else {
-            abort ["cdr with non pair not implemented"];
+            abort ["cdr with {} not implemented" % [val].stringify_type];
         };
     }
 
@@ -742,8 +674,19 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "is",
         "isnt",
 
+        "str",
+        "symbol",
+        "float",
+        "int",
+        "bool",
+        "arr",
+        "cons",
+        "list",
+        "error",
+        "typestr",
         "nilp",
         "nil~p",
+
         "not",
         "any",
         "all",
@@ -758,15 +701,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "choose",
         "return",
         "inputline",
-        "str",
-        "symbol",
-        "float",
-        "int",
-        "bool",
-        "arr",
-        "cons",
-        "list",
-        "typestr",
+
         "declare",
         "assign",
         "set",

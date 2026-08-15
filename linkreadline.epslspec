@@ -1,0 +1,3 @@
+{"functions": [], "types_": [], "structs": [], "dependencies": [], "clang_parse_subconfigs": [], "linking_configs": [
+    {"type": "constant", "parts": ["-lreadline"]}
+], "object_gen_configs": [], "imports": [], "ir": null, "obj": null, "source": null, "source_type": "User", "id_path": "Pod/linkreadline"}

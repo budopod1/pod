@@ -1,0 +1,110 @@
+%import pattern;
+%import frames;
+%import eval;
+%import vals;
+
+$PodVal??#run datatype builtin [BuiltinPodFrame:frame] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("str") {
+        require between [1] and [1] in [args];
+        return PodStr [[args[0]].get_string];
+    }
+
+    ("symbol") {
+        require between [1] and [1] in [args];
+        return PodSymbol [[args[0]].get_string];
+    }
+
+    ("float") {
+        require between [1] and [1] in [args];
+        if [args[0]].matches[NumberPattern []] {
+            return PodFloat [[args[0]] as float];
+        };
+        given args[0] as PodStr:str {
+            given parse_float[str.val] as R:val {
+                return PodFloat [val];
+            };
+            return pod nil;
+        };
+        Str:msg = "Cannot convert {} to float" % [args[0]].stringify_type;
+        temp error msg: [msg];
+        abort;
+    }
+
+    ("int") {
+        require between [1] and [1] in [args];
+        if [args[0]].matches[IntPattern []] {
+            return PodInt [[args[0]] as int];
+        } elif [args[0]].matches[NumberPattern []] {
+            return PodInt [[args[0]] as float#Z64];
+        };
+        given args[0] as PodStr:str {
+            given parse_int[str.val] as Z64:val {
+                return PodInt [val];
+            };
+            return pod nil;
+        };
+        Str:msg = "Cannot convert {} to int" % [args[0]].stringify_type;
+        temp error msg: [msg];
+        abort;
+    }
+
+    ("bool") {
+        require between [1] and [1] in [args];
+        return pod bool [[args[0]].is_truthy];
+    }
+
+    ("arr") {
+        return PodArray [args];
+    }
+
+    ("cons") {
+        require between [2] and [2] in [args];
+        return PodPair [args[0], args[1]];
+    }
+
+    ("list") {
+        $PodVal:result = pod nil;
+        for $PodVal:val in args step -1 {
+            result = PodPair [val, result];
+        };
+        return result;
+    }
+
+    ("error") {
+        require between [1] and [3] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Str:type = [args[0]].get_string;
+        Str?:msg = null;
+        if [args].len >= 2 && args[1] != pod nil {
+            require [args[1]] matches [StringPattern []];
+            msg = [args[1]].get_string;
+        };
+        $PodVal?:data = null;
+        if [args].len >= 3 {
+            data = args[3];
+        };
+        return PodError [type, msg, data, null];
+    }
+
+    ("typestr") {
+        require between [1] and [1] in [args];
+        return PodStr [[args[0]].stringify_type];
+    }
+
+    ("nilp") {
+        require between [1] and [1] in [args];
+        return pod bool [args[0] == pod nil];
+    }
+
+    ("nil~p") {
+        require between [1] and [1] in [args];
+        return pod bool [args[0] != pod nil];
+    }
+
+    {
+        return null;
+    };
+}

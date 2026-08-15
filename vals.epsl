@@ -219,7 +219,7 @@ Str#[$PodVal:val].stringify {
     } given val as PodOpaque:opaque {
         return ["#"] + [opaque.name];
     } given val as PodError:error {
-        return ["error:"] + [error.type];
+        return "#error:{}({})" % error.type % ([error.msg] || [""]);
     } given val as PodClearFn:fn {
         return "#function";
     } given val as PodBuiltinFn:builtin {

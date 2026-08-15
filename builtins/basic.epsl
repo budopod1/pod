@@ -3,7 +3,7 @@
 %import eval;
 %import vals;
 
-$PodVal?#run basic builtin [BuiltinPodFrame:frame] {
+$PodVal??#run basic builtin [BuiltinPodFrame:frame] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
     switch builtin.name
