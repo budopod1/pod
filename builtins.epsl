@@ -1,7 +1,7 @@
 %import builtins.basic;
 %import builtins.datatypes;
+%import builtins.io;
 
-%import inputline;
 %import pattern;
 %import frames;
 %import eval;
@@ -230,17 +230,6 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
     }
 
-    ("print") {
-        Str:result = [""].clone;
-        for L:i enumerating args {
-            if i {
-                [result].append[' '];
-            };
-            [result].extend[[args[i]].get_string];
-        };
-        println[result];
-        return pod nil;
-    }
 
     ("!") {
         lexical_frame.important = true;
@@ -401,17 +390,6 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         pop frame in [stack] returning [ret_val];
         return null;
-    }
-
-    ("inputline") {
-        Str:result = [""].clone;
-        for L:i enumerating args {
-            if i {
-                [result].append[' '];
-            };
-            [result].extend[[args[i]].get_string];
-        };
-        return PodStr [inputline[result]];
     }
 
     ("declare") {
@@ -649,11 +627,13 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             [result].append[int#Byte];
         };
         return PodStr [result];
-    }
-
-    {
-        abort ["{} is not a builtin" % builtin.name];
     };
+
+    given run io builtin [frame] as $PodVal?:result {
+        return result;
+    };
+
+    abort ["{} is not a builtin" % builtin.name];
 }
 
 #register builtin fns [PodStack:stack] {
@@ -693,14 +673,12 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "min",
         "max",
         "abs",
-        "print",
         "!",
         "forever",
         "if",
         "while",
         "choose",
         "return",
-        "inputline",
 
         "declare",
         "assign",
@@ -727,6 +705,12 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "#C",
         "chr",
         "ord",
+
+        "print",
+        "inputline",
+        "getenv",
+        "setenv",
+        "unsetenv",
     ];
     for Str:name in names {
         $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];

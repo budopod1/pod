@@ -1,0 +1,63 @@
+%import inputline;
+%import pattern;
+%import frames;
+%import eval;
+%import vals;
+%import proc;
+
+$PodVal??#run io builtin [BuiltinPodFrame:frame] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("print") {
+        Str:result = [""].clone;
+        for L:i enumerating args {
+            if i {
+                [result].append[' '];
+            };
+            [result].extend[[args[i]].get_string];
+        };
+        println[result];
+        return pod nil;
+    }
+
+    ("inputline") {
+        Str:result = [""].clone;
+        for L:i enumerating args {
+            if i {
+                [result].append[' '];
+            };
+            [result].extend[[args[i]].get_string];
+        };
+        return PodStr [inputline[result]];
+    }
+    
+    ("getenv") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        given get env var [[args[0]].get_string] as Str:val {
+            return PodStr [val];
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("setenv") {
+        require between [2] and [2] in [args];
+        require [args] all match [TxtPattern []];
+        Bool:status = set env var [[args[0]].get_string]
+            to [[args[1]].get_string];
+        return pod bool [status];
+    }
+
+    ("unsetenv") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Bool:status = unset env var [[args[0]].get_string];
+        return pod bool [status];
+    }
+
+    {
+        return null;
+    };
+}
