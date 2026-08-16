@@ -1,6 +1,7 @@
 %import inputline;
 %import pattern;
 %import frames;
+%import paths;
 %import eval;
 %import vals;
 %import proc;
@@ -9,6 +10,10 @@
 @extends BuiltinData;
 TimeBuiltinData {
     R:start_time
+}
+
+Path#pod resolve path [Str:path] {
+    return [Path_from [path]].expand_user;
 }
 
 $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
@@ -88,6 +93,29 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         exit with status [status];
         abort;
+    }
+
+    ("cwd") {
+        given get_cwd_path_str as Str:cwd {
+            return PodStr [cwd];
+        } else {
+            temp error msg: ["Cannot determine cwd"];
+            abort;
+        };
+    }
+
+    ("cd") {
+        require between [0] and [1] in [args];
+        Str:pathstr = "~";
+        if args {
+            require [args[0]] matches [TxtPattern []];
+            pathstr = [args[0]].get_string;
+        };
+        Path:path = pod resolve path [pathstr];
+        if ![path].cd_to {
+            temp error msg: ["Cannot cd to {}" % [path].stringify];
+        };
+        return pod nil;
     }
 
     {

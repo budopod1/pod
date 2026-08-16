@@ -100,7 +100,9 @@ PodFnExpr#parse file [Path:path] {
         frame.val_stack = [$PodVal] [];
 
         $PodVal:result = run frame [frame] in [stack];
-        println[[result].stringify];
+        if result != pod nil {
+            println[[result].stringify];
+        };
     };
 }
 

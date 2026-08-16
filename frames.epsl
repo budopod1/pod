@@ -166,6 +166,15 @@ $PodVal#lookup [Str:name] in [$LexicalPodFrame:frame] {
     };
 }
 
+#set local var [Str:name] in [$LexicalPodFrame:frame] to [$PodVal:val] {
+    for PodFrameVar:var in frame.vars {
+        if [var.name] equals [name] {
+            var.val = val;
+        };
+    };
+    [frame.vars].append[PodFrameVar [name, val]];
+}
+
 $PodFn?#lookup registered fn [Str:name] in [PodStack:stack] {
     for PodRegisteredFn:fn in stack.fns {
         if [fn.name] equals [name] {

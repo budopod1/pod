@@ -396,7 +396,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         require [args] all match [SymbolPattern []];
         for $PodVal:arg in args {
             Str:name = [args[0]#PodSymbol?].unwrap.str;
-            set var [name] in [lexical_frame] to [pod nil];
+            set local var [name] in [lexical_frame] to [pod nil];
         };
         return pod nil;
     }
@@ -713,6 +713,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "unsetenv",
         "time",
         "exit",
+        "cwd",
+        "cd",
     ];
     for Str:name in names {
         $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];
