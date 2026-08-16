@@ -83,6 +83,14 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         [stack.frames].append[sub_frame];
         return null#$PodVal?;
     }
+
+    ("unixtime") {
+        return PodFloat [get unix timestamp];
+    }
+
+    ("perfcounter") {
+        return PodFloat [read perf counter];
+    }
     
     ("exit") {
         require between [0] and [1] in [args];

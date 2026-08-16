@@ -712,6 +712,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "setenv",
         "unsetenv",
         "time",
+        "unixtime",
+        "perfcounter",
         "exit",
         "cwd",
         "cd",

@@ -1,3 +1,4 @@
+%import builtinglobals;
 %import builtins;
 %import vals;
 %import eval;
@@ -52,17 +53,12 @@ ClearFnPodFrame {
 }
 
 RootPodFrame#make root frame {
-    [PodFrameVar]:builtin_vars = [PodFrameVar] [
-        PodFrameVar ["nil", pod nil],
-        PodFrameVar ["t", pod bool [true]],
-        PodFrameVar ["f", pod bool [false]],
-    ];
     return RootPodFrame [
         [$PodVal] [],
         null,
         true,
         "top",
-        builtin_vars,
+        get builtin globals,
         null,
     ];
 }

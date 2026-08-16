@@ -1,0 +1,27 @@
+%import platform;
+%import frames;
+%import vals;
+%import proc;
+
+[PodFrameVar]#get builtin globals {
+    $PodVal:uid_val = pod nil;
+    Z64:uid_n = current_uid;
+    if uid_n != platform_invalid_int_val {
+        uid_val = PodInt [uid_n];
+    };
+
+    $PodVal:euid_val = pod nil;
+    Z64:euid_n = current_euid;
+    if euid_n != platform_invalid_int_val {
+        euid_val = PodInt [euid_n];
+    };
+
+    return [PodFrameVar] [
+        PodFrameVar ["nil", pod nil],
+        PodFrameVar ["t", pod bool [true]],
+        PodFrameVar ["f", pod bool [false]],
+        PodFrameVar ["PODPID", PodInt [get current PID]],
+        PodFrameVar ["UID", uid_val],
+        PodFrameVar ["EUID", euid_val],
+    ];
+}
