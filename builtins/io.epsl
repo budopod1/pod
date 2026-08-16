@@ -4,8 +4,14 @@
 %import eval;
 %import vals;
 %import proc;
+%import time;
 
-$PodVal??#run io builtin [BuiltinPodFrame:frame] {
+@extends BuiltinData;
+TimeBuiltinData {
+    R:start_time
+}
+
+$PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
     switch builtin.name
@@ -55,6 +61,33 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] {
         require [args[0]] matches [TxtPattern []];
         Bool:status = unset env var [[args[0]].get_string];
         return pod bool [status];
+    }
+
+    ("time") {
+        given frame.data as TimeBuiltinData:data {
+            R:elapsed = read perf counter - data.start_time;
+            Str:msg = "\nelapsed    {}m{}s\n"
+                % (elapsed#W ~/ 60) % (elapsed % 60);
+            print[msg];
+            return [frame.recieved].unwrap;
+        };
+        require between [1] and [null] in [args];
+        frame.data = TimeBuiltinData [read perf counter];
+        $PodFrame:sub_frame = make frame in [stack]
+            of [args[0]] args: [[args].slice_from[1]];
+        [stack.frames].append[sub_frame];
+        return null#$PodVal?;
+    }
+    
+    ("exit") {
+        require between [0] and [1] in [args];
+        Z:status = 0;
+        if args {
+            require [args[0]] matches [IntPattern []];
+            status = [args[0]] as int#Z;
+        };
+        exit with status [status];
+        abort;
     }
 
     {

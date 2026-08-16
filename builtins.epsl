@@ -629,7 +629,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         return PodStr [result];
     };
 
-    given run io builtin [frame] as $PodVal?:result {
+    given run io builtin [frame] in [stack] as $PodVal?:result {
         return result;
     };
 
@@ -711,6 +711,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "getenv",
         "setenv",
         "unsetenv",
+        "time",
+        "exit",
     ];
     for Str:name in names {
         $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];
