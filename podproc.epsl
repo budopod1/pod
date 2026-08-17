@@ -2,20 +2,47 @@
 %import vals;
 %import eval;
 
+@extends PodOpaque;
+PodEnvVar {
+    $PodVal:var_name,
+    $PodVal:var_val
+}
+
 Str#[$PodVal:val].cmd_stringify {
-    return [val].get_string;
+    given val as PodArray:array {
+        Str:result = [""].clone;
+        for $PodVal:elem in array.elems {
+            if result {
+                [result].append['\0'];
+            };
+            [result].extend[[elem].get_string];
+        };
+        return result;
+    };
+return [val].get_string;
 }
 
 Process?#start proc with [[$PodVal]:args] {
+    [ProcEnvVal]:vars = [ProcEnvVal] [];
+
     [Str]:arg_strs = [Str] [];
     for $PodVal:arg in args {
-        [arg_strs].append[[arg].cmd_stringify];
+        given arg as PodNil:nil {
+            continue;
+        } given arg as PodEnvVar:pod_env_var {
+            [vars].append[ProcEnvVal [
+                [pod_env_var.var_name].get_string,
+                [pod_env_var.var_val].get_string
+            ]];
+        } else {
+            [arg_strs].append[[arg].cmd_stringify];
+        };
     };
     
     ProcessResult:proc_result = start_proc [ProcInitInfo [
         0, null, // stdout
         0, null, // stderr
-        [ProcEnvVal] [],
+        vars,
         arg_strs[0],
         arg_strs
     ]];

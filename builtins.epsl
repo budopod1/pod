@@ -718,6 +718,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "cwd",
         "cd",
         "cmd",
+        "env",
     ];
     for Str:name in names {
         $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];
