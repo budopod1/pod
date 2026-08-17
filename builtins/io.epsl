@@ -1,5 +1,6 @@
 %import inputline;
 %import pattern;
+%import podproc;
 %import frames;
 %import paths;
 %import eval;
@@ -123,6 +124,11 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         if ![path].cd_to {
             temp error msg: ["Cannot cd to {}" % [path].stringify];
         };
+        return pod nil;
+    }
+
+    ("cmd") {
+        run cmd with [args];
         return pod nil;
     }
 

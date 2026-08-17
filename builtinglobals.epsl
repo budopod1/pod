@@ -1,5 +1,6 @@
 %import platform;
 %import frames;
+%import paths;
 %import vals;
 %import proc;
 
@@ -16,6 +17,11 @@
         euid_val = PodInt [euid_n];
     };
 
+    $PodVal:user = pod nil;
+    given get_os_user_name as Str:user_name {
+        user = PodStr [user_name];
+    };
+
     return [PodFrameVar] [
         PodFrameVar ["nil", pod nil],
         PodFrameVar ["t", pod bool [true]],
@@ -23,5 +29,6 @@
         PodFrameVar ["PODPID", PodInt [get current PID]],
         PodFrameVar ["UID", uid_val],
         PodFrameVar ["EUID", euid_val],
+        PodFrameVar ["USER", user],
     ];
 }

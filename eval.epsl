@@ -113,7 +113,9 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
         given lookup registered fn [sym.str] in [stack] as $PodFn:fn {
             maybe_fn = fn;
         } else {
-            abort ["cmd function to run '{}' not implemented" % sym.str];
+            return make frame in [stack]
+                of [PodBuiltinFn ["cmd", [$PodVal] []]]
+                args: [[[$PodVal] [fn_val]] + [args]];
         };
     } else {
         temp error msg: ["cannot execute {}" % [fn_val].stringify_type];

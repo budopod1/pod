@@ -1,0 +1,39 @@
+%import subproc;
+%import vals;
+%import eval;
+
+Str#[$PodVal:val].cmd_stringify {
+    return [val].get_string;
+}
+
+Process?#start proc with [[$PodVal]:args] {
+    [Str]:arg_strs = [Str] [];
+    for $PodVal:arg in args {
+        [arg_strs].append[[arg].cmd_stringify];
+    };
+    
+    ProcessResult:proc_result = start_proc [ProcInitInfo [
+        0, null, // stdout
+        0, null, // stderr
+        [ProcEnvVal] [],
+        arg_strs[0],
+        arg_strs
+    ]];
+
+    given proc_result.maybe_process as Process:proc {
+        return proc;
+    } given proc_result.maybe_error as ProcError:error {
+        temp error msg: [error.msg];
+        return null;
+    } else {
+        abort;
+    };
+}
+
+#run cmd with [[$PodVal]:args] {
+    given start proc with [args] as Process:proc {
+        given await_proc_completion[proc] as ProcError:error {
+            temp error msg: [error.msg];
+        };
+    };
+}
