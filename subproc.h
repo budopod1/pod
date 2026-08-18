@@ -41,8 +41,10 @@ typedef struct ARRAY_ProcEnvVal {
 /*
 output redirect mode key:
 0 - do not redirect
-1 - redirect to specified file
-2 - redirect to stdout (only for stderr)
+1 - redirect to stdout (only for stderr)
+2 - redirect to stderr (only for stdout)
+3 - redirect to specified file
+4 - capture
 */
 
 typedef struct ProcInitInfo {
@@ -80,5 +82,7 @@ typedef struct ProcessResult {
 ProcessResult *SPR_start_proc(ProcInitInfo *info);
 
 NULLABLE_ProcError *SPR_await_proc_completion(Process *process);
+
+NULLABLE_ProcError *SPR_poll_proc_status(Process *process);
 
 #endif

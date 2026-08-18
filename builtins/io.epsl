@@ -1,6 +1,5 @@
 %import inputline;
 %import pattern;
-%import podproc;
 %import frames;
 %import paths;
 %import eval;
@@ -126,22 +125,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         return pod nil;
     }
-
-    ("cmd") {
-        run cmd with [args];
-        return pod nil;
-    }
-
-    ("env") {
-        require between [2] and [2] in [args];
-        require [args[0]] matches [TxtPattern []];
-        return PodEnvVar [
-            "env-var",
-            args[0],
-            args[1]
-        ];
-    }
-
+    
     {
         return null;
     };

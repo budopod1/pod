@@ -1,1 +1,1 @@
-{"packages": ["json", "paths"]}
+{"packages": ["json", "paths", "commandconfig"]}

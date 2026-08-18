@@ -12,6 +12,7 @@
 #else
 
 #include <poll.h>
+#include <errno.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -56,24 +57,30 @@ static char *epsl_str_to_C_str(struct ARRAY_Byte *str) {
 #define CLEANUP_C_STR(str_name)\
     if (str_name##_is_new_str) free(str_name);
 
-static ProcessResult *result_error(char *msg) {
-    ProcError *error = epsl_malloc(sizeof(*error));
-    error->ref_counter = 1;
-    error->msg = C_str_to_epsl_str(1, msg);
+ProcError *proc_errorf(const char *format, ...) {
+    va_list vargs1;
+    va_start(vargs1, format);
+    va_list vargs2;
+    va_copy(vargs2, vargs1);
+    
+    size_t msg_len = vsnprintf(NULL, 0, format, vargs1);
+    char *buffer = epsl_malloc(msg_len + 1);
+    vsprintf(buffer, format, vargs2);
 
-    ProcessResult *result = epsl_calloc(1, sizeof(*result));
-    result->maybe_error = error;
-    return result;
+    va_end(vargs1);
+    va_end(vargs2);
+
+    ProcError *error = epsl_malloc(sizeof(*error));
+    error->ref_counter = 0;
+    error->msg = C_str_to_epsl_str(1, buffer);
+    return error;
 }
 
-static ProcessResult *result_errorf(const char *format, ...) {
-    va_list vargs;
-    va_start(vargs, format);
-    size_t msg_len = vsnprintf(NULL, 0, format, vargs);
-    char *buffer = epsl_malloc(msg_len + 1);
-    vsprintf(buffer, format, vargs);
-    ProcessResult *result = result_error(buffer);
-    va_end(vargs);
+static ProcessResult *result_error(struct ProcError *error) {
+    ProcessResult *result = epsl_calloc(1, sizeof(*result));
+    error->ref_counter++;
+    result->maybe_error = error;
+    return result;
 }
 
 static void subproc_set_env(ARRAY_ProcEnvVal *env_vals) {
@@ -111,7 +118,9 @@ ProcessResult *SPR_start_proc(ProcInitInfo *info) {
     pid_t pid = fork();
 
     if (pid < 0) {
-        return result_errorf("Failed to start subprocess");
+        return result_error(proc_errorf(
+            "Failed to start subprocess: %s", strerror(errno)
+        ));
     } else if (pid == 0) {
         subproc_run(info);
     }
@@ -125,11 +134,14 @@ ProcessResult *SPR_start_proc(ProcInitInfo *info) {
     return result;
 }
 
-NULLABLE_ProcError *SPR_await_proc_completion(Process *process) {
+static NULLABLE_ProcError *proc_waitpid(Process *process, int options) {
     while (true) {
         int wstatus;
-        if (waitpid(process->pid, &wstatus, 0) < 0) {
-            return result_errorf("Error while waiting for process completion");
+        pid_t s = waitpid(process->pid, &wstatus, options);
+        if (s < 0) {
+            return proc_errorf("Failed to get process status: %s", strerror(errno));
+        } else if (s == 0) {
+            return NULL;
         }
         if (WIFEXITED(wstatus)) {
             process->result_status = WEXITSTATUS(wstatus);
@@ -141,4 +153,12 @@ NULLABLE_ProcError *SPR_await_proc_completion(Process *process) {
     }
     process->completed = true;
     return NULL;
+} 
+
+NULLABLE_ProcError *SPR_await_proc_completion(Process *process) {
+    return proc_waitpid(process, 0);
+}
+
+NULLABLE_ProcError *SPR_poll_proc_status(Process *process) {
+    return proc_waitpid(process, WNOHANG);
 }

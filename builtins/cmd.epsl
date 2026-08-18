@@ -1,0 +1,58 @@
+%import pattern;
+%import podproc;
+%import frames;
+%import eval;
+%import vals;
+
+$PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("cmd") {
+        given start proc with [args] as PodProcess:proc {
+            wait for_ [proc] completion;
+        };
+        return pod nil;
+    }
+
+    ("proc") {
+        given start proc with [args] as PodProcess:proc {
+            return proc;
+        };
+        return null;
+    }
+
+    ("getstatus") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [OpaquePattern ["process"]];
+        PodProcess:proc = [args[0]#PodProcess?].unwrap;
+        poll proc [proc];
+        if proc.proc.completed {
+            return PodInt [proc.proc.result_status];
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("wait") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [OpaquePattern ["process"]];
+        PodProcess:proc = [args[0]#PodProcess?].unwrap;
+        wait for_ [proc] completion;
+        return pod nil;
+    }
+
+    ("env") {
+        require between [2] and [2] in [args];
+        require [args[0]] matches [TxtPattern []];
+        return PodEnvVar [
+            "env-var",
+            args[0],
+            args[1]
+        ];
+    }
+    
+    {
+        return null;
+    };
+}

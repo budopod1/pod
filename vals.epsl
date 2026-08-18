@@ -55,7 +55,7 @@ PodArray {
 @super;
 @extends PodVal;
 PodOpaque {
-    Str:name
+    Str:type
 }
 
 SourceLocation {}
@@ -216,8 +216,8 @@ Str#[$PodVal:val].stringify {
             [elem_str].extend[[elem].stringify];
         };
         return "(arr{})" % elem_str;
-    } given val as PodOpaque:opaque {
-        return ["#"] + [opaque.name];
+    } given val as $PodOpaque:opaque {
+        return ["#"] + [opaque.type];
     } given val as PodError:error {
         return "#error:{}({})" % error.type % ([error.msg] || [""]);
     } given val as PodClearFn:fn {
@@ -255,7 +255,7 @@ Str#[$PodVal:val].stringify_type {
     } given val as PodArray:array {
         return "array";
     } given val as PodOpaque:opaque {
-        return opaque.name;
+        return opaque.type;
     } given val as PodError:error {
         return "error";
     } given val as PodClearFn:fn {
@@ -312,7 +312,7 @@ Bool#[$PodVal:a] equals [$PodVal:b] {
             return true;
         };
         return false;
-    } given a as PodOpaque:opaque_a {
+    } given a as $PodOpaque:opaque_a {
         return a == b;
     } given a as PodError:error_a {
         return a == b;

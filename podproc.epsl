@@ -8,6 +8,11 @@ PodEnvVar {
     $PodVal:var_val
 }
 
+@extends PodOpaque;
+PodProcess {
+    Process:proc
+}
+
 Str#[$PodVal:val].cmd_stringify {
     given val as PodArray:array {
         Str:result = [""].clone;
@@ -19,10 +24,10 @@ Str#[$PodVal:val].cmd_stringify {
         };
         return result;
     };
-return [val].get_string;
+    return [val].get_string;
 }
 
-Process?#start proc with [[$PodVal]:args] {
+PodProcess?#start proc with [[$PodVal]:args] {
     [ProcEnvVal]:vars = [ProcEnvVal] [];
 
     [Str]:arg_strs = [Str] [];
@@ -34,9 +39,23 @@ Process?#start proc with [[$PodVal]:args] {
                 [pod_env_var.var_name].get_string,
                 [pod_env_var.var_val].get_string
             ]];
-        } else {
-            [arg_strs].append[[arg].cmd_stringify];
+            continue;
+        } given arg as PodSymbol:symbol {
+            // the target, coming after the '>', can be:
+            // 1 (redirect to stdout)
+            // 2 (redirect to stderr)
+            // . (capture as result)
+            // $.* (get the variable's value, repeat this selection)
+            // .* (redirect to file)
+            if symbol.str[0]? == '>' {
+
+            } elif symbol.str[1]? == '>' {
+
+            } elif symbol.str[0]? == '<' {
+
+            };
         };
+        [arg_strs].append[[arg].cmd_stringify];
     };
     
     ProcessResult:proc_result = start_proc [ProcInitInfo [
@@ -48,7 +67,7 @@ Process?#start proc with [[$PodVal]:args] {
     ]];
 
     given proc_result.maybe_process as Process:proc {
-        return proc;
+        return PodProcess ["process", proc];
     } given proc_result.maybe_error as ProcError:error {
         temp error msg: [error.msg];
         return null;
@@ -57,10 +76,25 @@ Process?#start proc with [[$PodVal]:args] {
     };
 }
 
-#run cmd with [[$PodVal]:args] {
-    given start proc with [args] as Process:proc {
-        given await_proc_completion[proc] as ProcError:error {
-            temp error msg: [error.msg];
-        };
+#wait for_ [PodProcess:pod_proc] completion {
+    Process:proc = pod_proc.proc;
+    if proc.completed {
+        return;
+    };
+    given await_proc_completion[proc] as ProcError:error {
+        temp error msg: [error.msg];
+    };
+    if proc.result_status != 0 {
+        abort ["proc status handling not implemented"];
+    };
+}
+
+#poll proc [PodProcess:pod_proc] {
+    Process:proc = pod_proc.proc;
+    if proc.completed {
+        return;
+    };
+    given poll_proc_status[proc] as ProcError:error {
+        temp error msg: [error.msg];
     };
 }

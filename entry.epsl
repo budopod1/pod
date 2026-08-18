@@ -1,5 +1,6 @@
 %import linkreadline;
 
+%import commandconfig;
 %import astparser;
 %import tokenizer;
 %import inputline;
@@ -57,9 +58,7 @@ PodFnExpr#parse file [Path:path] {
     };
 }
 
-#run file [Path:path] args: [[Str]:str_args] {
-    PodFnExpr:fn_expr = parse file [path];
-
+#run program [PodFnExpr:fn_expr] from [Path:path] args: [[Str]:str_args] {
     PodStack:stack = make new stack;
     PodClearFn:fn = PodClearFn [fn_expr, top lexical frame in [stack]];
 
@@ -72,6 +71,18 @@ PodFnExpr#parse file [Path:path] {
     frame.important = true;
     frame.label = "prgm";
     run frame [frame] in [stack];
+}
+
+#run file [Path:path] args: [[Str]:str_args] {
+    PodFnExpr:fn_expr = parse file [path];
+    run program [fn_expr] from [path] args: [str_args];
+}
+
+#run string [Str:txt] args: [[Str]:str_args] {
+    Path:path = Path_from["<string>"];
+    given parse txt [txt] path: [path] as PodFnExpr:fn_expr {
+        run program [fn_expr] from [path] args: [str_args];
+    };
 }
 
 #run REPL {
@@ -98,6 +109,7 @@ PodFnExpr#parse file [Path:path] {
         fn.src = [maybe_fn_expr].unwrap;
         frame.pc = 0;
         frame.val_stack = [$PodVal] [];
+        frame.recieved = null;
 
         $PodVal:result = run frame [frame] in [stack];
         if result != pod nil {
@@ -107,12 +119,52 @@ PodFnExpr#parse file [Path:path] {
 }
 
 Z#main {
-    [Str]:argv = get argv;
+    ConfigProps:config = ConfigProps [[$ConfigProp] [
+        StringProp ["exec-str"],
+        StringProp ["filename"],
+        StringsProp ["args"],
+    ]];
 
-    given argv[1]? as Str:filename {
+    ArgumentBranch:branch = make root branch;
+    [branch].flag[[Str] ["help", "h"]] [CmdShowHelp []]
+        help: ["Show this help"];
+    [branch].positional[StringInputSource ["filename"]]
+        optional: [true] help: ["The file to run"];
+    [branch].flag[[Str] ["c"]][StringInputSource ["exec-str"]]
+        help: ["Use program passed in as string"];
+    [branch].positional[MultiStringInputSource ["args", null]]
+        optional: [true] help: ["Arguments for the program"];
+    
+    CommandSpec:spec = CommandSpec [
+        config,
+        "pod",
+        "The Pod shell",
+        null,
+        branch,
+        default help style
+    ];
+
+    CommandParsingResult:result = [spec].parse_command_args;
+
+    ConfigChain:chain = ConfigChain [[ConfigValues] [
+        result.values
+    ]];
+
+    [Str]:rest_args = [chain].get_strings["args"];
+
+    if [chain].try_get["exec-str"] {
+        // hack to force filename arg to be treated as normal arg
+        if [chain].try_get["filename"] {
+            [rest_args].insert[0][[chain].get_string["filename"]];
+        };
+
+        run string [[chain].get_string["exec-str"]] args: [rest_args];
+    } elif [chain].try_get["filename"] {
+        Str:filename = [chain].get_string["filename"];
+
         Path:entry_path = Path_from [filename];
 
-        run file [entry_path] args: [[argv].slice_from[1]];
+        run file [entry_path] args: [rest_args];
     } else {
         run REPL;
     };

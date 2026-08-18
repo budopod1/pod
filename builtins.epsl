@@ -1,5 +1,6 @@
 %import builtins.basic;
 %import builtins.datatypes;
+%import builtins.cmd;
 %import builtins.io;
 
 %import pattern;
@@ -413,9 +414,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     ("set") {
         require between [3] and [null] in [args];
 
-        if [args].len == 3 {
-            require [args[0]] matches [SymbolPattern []];
-            require [args[1]] matches [ExactSymbolPattern ["="]];
+        if [args].len == 3 && ([args[0]].matches [SymbolPattern []])
+            && ([args[1]].matches [ExactSymbolPattern ["="]]) {
             Str:name = [args[0]#PodSymbol?].unwrap.str;
             if [name].at[-1] != '*' {
                 set var [name]
@@ -592,7 +592,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("_") { // the identity function
-        require between [1] and [1] in [args];
+        require between [1] and [null] in [args];
         return args[0];
     }
 
@@ -630,6 +630,10 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     };
 
     given run io builtin [frame] in [stack] as $PodVal?:result {
+        return result;
+    };
+
+    given run cmd builtin [frame] in [stack] as $PodVal?:result {
         return result;
     };
 
@@ -717,7 +721,11 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "exit",
         "cwd",
         "cd",
+
         "cmd",
+        "proc",
+        "getstatus",
+        "wait",
         "env",
     ];
     for Str:name in names {

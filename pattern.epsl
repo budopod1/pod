@@ -32,6 +32,11 @@ EitherPattern {
     [$Pattern]:options
 }
 
+@extends Pattern;
+OpaquePattern {
+    Str:type
+}
+
 Bool#[$PodVal:val].matches[$Pattern:pattern] {
     given pattern as NumberPattern:num_pattern {
         return (val#PodFloat?) || (val#PodInt?);
@@ -56,6 +61,11 @@ Bool#[$PodVal:val].matches[$Pattern:pattern] {
             if [val].matches[option] {
                 return true;
             };
+        };
+        return false;
+    } given pattern as OpaquePattern:opaque_pattern {
+        given val as $PodOpaque:opaque {
+            return [opaque.type] equals [opaque_pattern.type];
         };
         return false;
     } else {
@@ -87,6 +97,8 @@ Str#[$Pattern:pattern].message {
             [result].extend[[option].message];
         };
         return result;
+    } given pattern as OpaquePattern:opaque_pattern {
+        return "#{}" % opaque_pattern.type;
     } else {
         abort;
     };
