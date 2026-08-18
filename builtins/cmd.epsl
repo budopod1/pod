@@ -11,8 +11,9 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     ("cmd") {
         given start proc with [args] as PodProcess:proc {
             wait for_ [proc] completion;
+            return pod nil;
         };
-        return pod nil;
+        return null;
     }
 
     ("proc") {
@@ -39,6 +40,19 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         require [args[0]] matches [OpaquePattern ["process"]];
         PodProcess:proc = [args[0]#PodProcess?].unwrap;
         wait for_ [proc] completion;
+        return pod nil;
+    }
+
+    ("signalproc") {
+        require between [1] and [2] in [args];
+        require [args[0]] matches [OpaquePattern ["process"]];
+        Str:signame = "SIGKILL";
+        if [args].len >= 2 {
+            require [args[1]] matches [TxtPattern []];
+            signame = [args[1]].get_string;
+        };
+        PodProcess:proc = [args[0]#PodProcess?].unwrap;
+        send signal [signame] to [proc];
         return pod nil;
     }
 

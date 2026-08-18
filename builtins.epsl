@@ -726,6 +726,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "proc",
         "getstatus",
         "wait",
+        "signalproc",
         "env",
     ];
     for Str:name in names {

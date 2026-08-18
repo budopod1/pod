@@ -14,6 +14,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 
@@ -161,4 +162,66 @@ NULLABLE_ProcError *SPR_await_proc_completion(Process *process) {
 
 NULLABLE_ProcError *SPR_poll_proc_status(Process *process) {
     return proc_waitpid(process, WNOHANG);
+}
+
+struct SignalNamePair {
+    const char *name;
+    int signal;
+};
+
+#define SIGNAL_NAME_PAIR(name) {#name, name}
+
+const struct SignalNamePair signal_names[] = {
+    SIGNAL_NAME_PAIR(SIGHUP),
+    SIGNAL_NAME_PAIR(SIGINT),
+    SIGNAL_NAME_PAIR(SIGQUIT),
+    SIGNAL_NAME_PAIR(SIGILL),
+    SIGNAL_NAME_PAIR(SIGTRAP),
+    SIGNAL_NAME_PAIR(SIGABRT),
+    SIGNAL_NAME_PAIR(SIGFPE),
+    SIGNAL_NAME_PAIR(SIGKILL),
+    SIGNAL_NAME_PAIR(SIGBUS),
+    SIGNAL_NAME_PAIR(SIGSEGV),
+    SIGNAL_NAME_PAIR(SIGSYS),
+    SIGNAL_NAME_PAIR(SIGPIPE),
+    SIGNAL_NAME_PAIR(SIGALRM),
+    SIGNAL_NAME_PAIR(SIGTERM),
+    SIGNAL_NAME_PAIR(SIGURG),
+    SIGNAL_NAME_PAIR(SIGSTOP),
+    SIGNAL_NAME_PAIR(SIGTSTP),
+    SIGNAL_NAME_PAIR(SIGCONT),
+    SIGNAL_NAME_PAIR(SIGCHLD),
+    SIGNAL_NAME_PAIR(SIGTTIN),
+    SIGNAL_NAME_PAIR(SIGTTOU),
+    SIGNAL_NAME_PAIR(SIGIO),
+    SIGNAL_NAME_PAIR(SIGXCPU),
+    SIGNAL_NAME_PAIR(SIGXFSZ),
+    SIGNAL_NAME_PAIR(SIGVTALRM),
+    SIGNAL_NAME_PAIR(SIGPROF),
+    SIGNAL_NAME_PAIR(SIGWINCH),
+    SIGNAL_NAME_PAIR(SIGUSR1),
+    SIGNAL_NAME_PAIR(SIGUSR2),
+};
+
+static int lookup_signal_number(char *name) {
+    for (int i = 0; i < sizeof(signal_names) / sizeof(*signal_names); i++) {
+        struct SignalNamePair pair = signal_names[i];
+        if (strcmp(pair.name, name) == 0) {
+            return pair.signal;
+        }
+    }
+    return -1;
+}
+
+NULLABLE_ProcError *SPR_send_proc_signal(Process *process, ARRAY_Byte *signame) {
+    EPSL_STR_TO_C_STR(signame, c_signame)
+    int signal_number = lookup_signal_number(c_signame);
+    CLEANUP_C_STR(c_signame);
+    if (signal_number == -1) {
+        return proc_errorf("Cannot find signal by specified name");
+    }
+    if (kill(process->pid, signal_number)) {
+        return proc_errorf("Failed to send process signal: %s", strerror(errno));
+    }
+    return NULL;
 }

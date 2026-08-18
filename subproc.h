@@ -85,4 +85,6 @@ NULLABLE_ProcError *SPR_await_proc_completion(Process *process);
 
 NULLABLE_ProcError *SPR_poll_proc_status(Process *process);
 
+NULLABLE_ProcError *SPR_send_proc_signal(Process *process, ARRAY_Byte *signame);
+
 #endif

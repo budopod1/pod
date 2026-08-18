@@ -98,3 +98,16 @@ PodProcess?#start proc with [[$PodVal]:args] {
         temp error msg: [error.msg];
     };
 }
+
+#send signal [Str:signame] to [PodProcess:pod_proc] {
+    Process:proc = pod_proc.proc;
+    if proc.completed {
+        if [signame] equals ["SIGTERM"] {
+            return;
+        };
+        temp error msg: ["Cannot send signal to completed process"];
+    };
+    given send_proc_signal[proc][signame] as ProcError:error {
+        temp error msg: [error.msg];
+    };
+}
