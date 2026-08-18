@@ -151,22 +151,62 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         return pod bool [![args[0]].is_truthy];
     }
 
+    ("or") {
+        $PodVal:last = pod bool [false];
+        given frame.recieved as $PodVal:recieved {
+            if [recieved].is_truthy {
+                return recieved;
+            };
+            last = recieved;
+        };
+        if args {
+            $PodFrame:sub_frame = make frame in [stack]
+                of [[args].pop[0]] args: [[$PodVal] []];
+            [stack.frames].append[sub_frame];
+            return null;
+        } else {
+            return last;
+        };
+    }
+
+    ("and") {
+        $PodVal:last = pod bool [true];
+        given frame.recieved as $PodVal:recieved {
+            if ![recieved].is_truthy {
+                return recieved;
+            };
+            last = recieved;
+        };
+        if args {
+            $PodFrame:sub_frame = make frame in [stack]
+                of [[args].pop[0]] args: [[$PodVal] []];
+            [stack.frames].append[sub_frame];
+            return null;
+        } else {
+            return last;
+        };
+    }
+
     ("any") {
+        $PodVal:last = pod bool [false];
         for $PodVal:val in args {
             if [val].is_truthy {
-                return pod bool [true];
+                return val;
             };
+            last = val;
         };
-        return pod bool [false];
+        return last;
     }
 
     ("all") {
+        $PodVal:last = pod bool [true];
         for $PodVal:val in args {
             if ![val].is_truthy {
-                return pod bool [false];
+                return val;
             };
+            last = val;
         };
-        return pod bool [true];
+        return last;
     }
     // TODO: some/every are equivalent to any/all except they take
     // an iterable and (optionally) a mapping function
@@ -672,6 +712,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "nil~p",
 
         "not",
+        "or",
+        "and",
         "any",
         "all",
         "min",
