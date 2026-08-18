@@ -1,0 +1,6 @@
+set a = (proc bash -c "exit 34")
+wait $a (capstatus b)
+echo $b
+cmd bash -c "exit 15" (capstatus c)
+echo $c
+cmd bash -c "exit 56"

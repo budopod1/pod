@@ -84,9 +84,6 @@ PodProcess?#start proc with [[$PodVal]:args] {
     given await_proc_completion[proc] as ProcError:error {
         temp error msg: [error.msg];
     };
-    if proc.result_status != 0 {
-        abort ["proc status handling not implemented"];
-    };
 }
 
 #poll proc [PodProcess:pod_proc] {

@@ -1,0 +1,4 @@
+set foo bar = *$@
+
+print foo
+print bar

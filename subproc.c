@@ -128,7 +128,11 @@ ProcessResult *SPR_start_proc(ProcInitInfo *info) {
 
     Process *process = epsl_malloc(sizeof(*process));
     process->ref_counter = 1;
+    process->program = info->program;
+    process->program->ref_counter++;
     process->pid = pid;
+    process->completed = false;
+    process->result_status = -1;
 
     ProcessResult *result = epsl_calloc(1, sizeof(*result));
     result->maybe_process = process;

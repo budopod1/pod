@@ -1,16 +1,50 @@
 %import pattern;
 %import podproc;
+%import subproc;
 %import frames;
 %import eval;
 %import vals;
+
+@extends PodOpaque;
+PodCaptureStatus {
+    Str:var_name
+}
+
+Str?#extract status cap name in [[$PodVal]:args] {
+    for L:i enumerating args step -1 {
+        $PodVal:arg = args[i];
+        given arg as PodCaptureStatus:cap_status {
+            [args].pop[i];
+            return cap_status.var_name;
+        };
+    };
+    return null;
+}
+
+#check status [PodProcess:pod_proc] cap: [Str?:cap_name] in [PodStack:stack] {
+    Process:proc = pod_proc.proc;
+    given cap_name as Str:var_name {
+        set var [var_name]
+            in [top lexical frame in [stack]]
+            to [PodInt [proc.result_status]];
+    } else {
+        if proc.result_status != 0 {
+            Str:msg = "process '{}' exited with status {}"
+                % proc.program % proc.result_status;
+            temp error msg: [msg];
+        };
+    };
+}
 
 $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
     switch builtin.name
     ("cmd") {
+        Str?:cap_name = extract status cap name in [args];
         given start proc with [args] as PodProcess:proc {
             wait for_ [proc] completion;
+            check status [proc] cap: [cap_name] in [stack];
             return pod nil;
         };
         return null;
@@ -36,10 +70,12 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("wait") {
+        Str?:cap_name = extract status cap name in [args];
         require between [1] and [1] in [args];
         require [args[0]] matches [OpaquePattern ["process"]];
         PodProcess:proc = [args[0]#PodProcess?].unwrap;
         wait for_ [proc] completion;
+        check status [proc] cap: [cap_name] in [stack];
         return pod nil;
     }
 
@@ -63,6 +99,15 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             "env-var",
             args[0],
             args[1]
+        ];
+    }
+
+    ("capstatus") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [SymbolPattern []];
+        return PodCaptureStatus [
+            "capture-status",
+            [args[0]].get_string
         ];
     }
     

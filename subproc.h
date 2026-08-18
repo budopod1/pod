@@ -63,6 +63,7 @@ typedef struct ProcInitInfo {
 
 typedef struct Process {
     uint64_t ref_counter;
+    struct ARRAY_Byte *program;
     uint32_t pid;
     bool completed;
     int32_t result_status;
