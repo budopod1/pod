@@ -1,7 +1,10 @@
+%import platform;
 %import pattern;
 %import podproc;
 %import subproc;
+%import iotools;
 %import frames;
+%import paths;
 %import eval;
 %import vals;
 
@@ -55,6 +58,20 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             return proc;
         };
         return null;
+    }
+
+    ("glob") {
+        require [args] all match [TxtPattern []];
+        [Str]:patterns = [Str] [];
+        for $PodVal:val in args {
+            Path:path = pod resolve path [[val].get_string];
+            [patterns].append[[path].stringify];
+        };
+        [$PodVal]:elems = [$PodVal] [];
+        for Str:match in glob_paths[patterns] {
+            [elems].append[PodStr [match]];
+        };
+        return PodArray [elems];
     }
 
     ("getstatus") {

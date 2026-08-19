@@ -27,36 +27,9 @@
 #define noreturn _Noreturn
 #endif
 
-static ARRAY_Byte *C_str_to_epsl_str(uint64_t ref_counter, char *src) {
-    ARRAY_Byte *result = epsl_malloc(sizeof(*result));
-    result->ref_counter = ref_counter;
-    uint64_t length = strlen(src);
-    result->capacity = length + 1;
-    result->length = length;
-    result->content = (unsigned char*)src;
-    return result;
-}
+#define Cstr_to_Estr(a, b) ((ARRAY_Byte*)epsl_Cstr_to_Estr(a, b))
 
-static char *epsl_str_to_C_str(struct ARRAY_Byte *str) {
-    char *result = epsl_malloc(str->length + 1);
-    memcpy(result, str->content, str->length);
-    result[str->length] = '\0';
-    return result;
-}
-
-#define EPSL_STR_TO_C_STR(epsl_str, str_name)\
-    char *str_name;\
-    bool str_name##_is_new_str = epsl_str->capacity <= epsl_str->length;\
-    if (str_name##_is_new_str) {\
-        str_name = epsl_malloc(epsl_str->length+1);\
-        memcpy(str_name, epsl_str->content, epsl_str->length);\
-    } else {\
-        str_name = (char*)epsl_str->content;\
-    }\
-    str_name[epsl_str->length] = '\0';
-
-#define CLEANUP_C_STR(str_name)\
-    if (str_name##_is_new_str) free(str_name);
+#define Estr_to_Cstr(a) epsl_Estr_to_Cstr((struct Array*)(a))
 
 ProcError *proc_errorf(const char *format, ...) {
     va_list vargs1;
@@ -73,7 +46,7 @@ ProcError *proc_errorf(const char *format, ...) {
 
     ProcError *error = epsl_malloc(sizeof(*error));
     error->ref_counter = 0;
-    error->msg = C_str_to_epsl_str(1, buffer);
+    error->msg = Cstr_to_Estr(1, buffer);
     return error;
 }
 
@@ -90,7 +63,8 @@ static void subproc_set_env(ARRAY_ProcEnvVal *env_vals) {
         EPSL_STR_TO_C_STR(env_val->name, name);
         EPSL_STR_TO_C_STR(env_val->val, val);
         setenv(name, val, 1);
-        CLEANUP_C_STR(name);
+        CLEANUP_CONV_C_STR(name);
+        CLEANUP_CONV_C_STR(val);
     }
 }
 
@@ -104,7 +78,7 @@ noreturn static void subproc_run(ProcInitInfo *info) {
     );
 
     for (uint64_t i = 0; i < info->args->length; i++) {
-        args_buffer[i] = epsl_str_to_C_str(info->args->content[i]);
+        args_buffer[i] = Estr_to_Cstr(info->args->content[i]);
     }
 
     args_buffer[info->args->length] = NULL;
@@ -220,7 +194,7 @@ static int lookup_signal_number(char *name) {
 NULLABLE_ProcError *SPR_send_proc_signal(Process *process, ARRAY_Byte *signame) {
     EPSL_STR_TO_C_STR(signame, c_signame)
     int signal_number = lookup_signal_number(c_signame);
-    CLEANUP_C_STR(c_signame);
+    CLEANUP_CONV_C_STR(c_signame);
     if (signal_number == -1) {
         return proc_errorf("Cannot find signal by specified name");
     }

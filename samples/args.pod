@@ -1,4 +1,4 @@
-set foo bar = *$@
+set foo bar = :$@
 
-print foo
-print bar
+print $foo
+print $bar

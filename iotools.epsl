@@ -7,6 +7,10 @@ FileReadResult {
     $ErrorBundle:errors
 }
 
+Path#pod resolve path [Str:path] {
+    return [Path_from [path]].expand_user;
+}
+
 $ErrorBundle#IO error msg: [Str:msg] path: [Path?:maybe_path] {
     given maybe_path as Path:path {
         msg = "{}: {}" % [path].stringify % msg;

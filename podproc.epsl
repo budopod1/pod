@@ -1,4 +1,7 @@
+%import platform;
+%import iotools;
 %import subproc;
+%import paths;
 %import vals;
 %import eval;
 
@@ -47,12 +50,18 @@ PodProcess?#start proc with [[$PodVal]:args] {
             // . (capture as result)
             // $.* (get the variable's value, repeat this selection)
             // .* (redirect to file)
-            if symbol.str[0]? == '>' {
+            Str:str = symbol.str;
+            if str[0]? == '>' {
 
-            } elif symbol.str[1]? == '>' {
+            } elif str[1]? == '>' {
 
-            } elif symbol.str[0]? == '<' {
+            } elif str[0]? == '<' {
 
+            } elif ([str].index_of["*"]) || ([str].index_of["?"])
+                || ([str].index_of["["]) || (str[0]? == '~') {
+                Str:path_str = [pod resolve path [str]].stringify;
+                [arg_strs].extend[glob_paths[[Str] [path_str]]];
+                continue;
             };
         };
         [arg_strs].append[[arg].cmd_stringify];

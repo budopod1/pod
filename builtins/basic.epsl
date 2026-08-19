@@ -42,7 +42,7 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
         };
     }
 
-    (".") {
+    ("*") {
         require [args] all match [NumberPattern []];
         if [args].all_match[IntPattern []] {
             Z64:x = 1;

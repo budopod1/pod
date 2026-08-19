@@ -58,28 +58,28 @@ PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
 }
 
 #set vars [[Str]:var_names] in [$LexicalPodFrame:frame] to [[$PodVal]:vals] {
-    Str?:maybe_star_name = null;
-    [Str]:pre_star_names = [Str] [];
-    [Str]:post_star_names = [Str] [];
+    Str?:maybe_spread_name = null;
+    [Str]:pre_spread_names = [Str] [];
+    [Str]:post_spread_names = [Str] [];
     L:required_val_count = 0;
 
     for Str:name in var_names {
         if [name].len == 0 {
             temp error msg: ["Cannot assign to empty symbol"];
-        } elif [name].at[-1] == '*' {
-            if maybe_star_name {
+        } elif [name].at[-1] == ':' {
+            if maybe_spread_name {
                 temp error msg: ["Cannot have multiple spread assignees"];
             };
-            maybe_star_name = [name].slice[0][[name].len-1];
+            maybe_spread_name = [name].slice[0][[name].len-1];
             continue;
         };
         if [name].at[-1] != '?' {
             required_val_count += 1;
         };
-        if maybe_star_name {
-            [post_star_names].append[name];
+        if maybe_spread_name {
+            [post_spread_names].append[name];
         } else {
-            [pre_star_names].append[name];
+            [pre_spread_names].append[name];
         };
     };
     
@@ -90,7 +90,7 @@ PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
 
     L:val_idx = 0;
 
-    for Str:name in pre_star_names {
+    for Str:name in pre_spread_names {
         if [name].at[-1] == '?' {
             $PodVal:val = pod nil;
             if optional_val_count > 0 {
@@ -109,7 +109,7 @@ PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
         };
     };
 
-    for Str:name in post_star_names step -1 {
+    for Str:name in post_spread_names step -1 {
         if [name].at[-1] == '?' {
             $PodVal:val = pod nil;
             if optional_val_count > 0 {
@@ -126,8 +126,8 @@ PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
         };
     };
 
-    given maybe_star_name as Str:star_name {
-        set var [star_name]
+    given maybe_spread_name as Str:spread_name {
+        set var [spread_name]
             in [frame]
             to [PodArray [[vals].slice_from[val_idx]]];
     };
@@ -457,7 +457,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         if [args].len == 3 && ([args[0]].matches [SymbolPattern []])
             && ([args[1]].matches [ExactSymbolPattern ["="]]) {
             Str:name = [args[0]#PodSymbol?].unwrap.str;
-            if [name].at[-1] != '*' {
+            if [name].at[-1] != ':' {
                 set var [name]
                     in [lexical_frame]
                     to [args[2]];
@@ -684,7 +684,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     [Str]:names = [Str] [
         "+",
         "-",
-        ".",
+        "*",
         "/",
         "~/",
         "%",
@@ -766,6 +766,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
         "cmd",
         "proc",
+        "glob",
         "getstatus",
         "wait",
         "signalproc",

@@ -1,5 +1,6 @@
 %import inputline;
 %import pattern;
+%import iotools;
 %import frames;
 %import paths;
 %import eval;
@@ -10,10 +11,6 @@
 @extends BuiltinData;
 TimeBuiltinData {
     R:start_time
-}
-
-Path#pod resolve path [Str:path] {
-    return [Path_from [path]].expand_user;
 }
 
 $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {

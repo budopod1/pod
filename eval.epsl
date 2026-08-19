@@ -28,7 +28,7 @@ MakeFnVMInstr {
 @extends VMInstr;
 CallFnVMInstr {
     W:arg_count,
-    [W]:star_args
+    [W]:spread_args
 }
 
 #compile expr [$PodExpr:expr] to [[$VMInstr]:instrs] {
@@ -49,20 +49,20 @@ CallFnVMInstr {
     if sexpr.pipeline {
         abort ["pipeline not supported"];
     };
-    [W]:star_args = [W] [];
+    [W]:spread_args = [W] [];
     for W:i enumerating sexpr.args {
         $PodArg:arg = sexpr.args[i];
         given arg as $PodExpr:expr {
             compile expr [expr] to [instrs];
         } given arg as PodSpreadArg:spread_arg {
             compile expr [spread_arg.expr] to [instrs];
-            [star_args].append[i];
+            [spread_args].append[i];
         } else {
             abort;
         };
     };
     [instrs].append[CallFnVMInstr [
-        [sexpr.args].len#W, star_args
+        [sexpr.args].len#W, spread_args
     ]];
 }
 
@@ -144,7 +144,7 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
         [$PodVal]:expanded_vals = [$PodVal] [];
         for W:i to arg_count {
             $PodVal:val = val_stack[[val_stack].len - arg_count + i];
-            if [call_fn_instr.star_args].index_of[i] {
+            if [call_fn_instr.spread_args].index_of[i] {
                 given val as PodArray:arr {
                     [expanded_vals].extend[arr.elems];
                 } else {
