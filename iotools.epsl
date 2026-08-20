@@ -1,14 +1,40 @@
 %import fileio;
 %import errors;
 %import paths;
+%import proc;
 
 FileReadResult {
     Str?:txt,
     $ErrorBundle:errors
 }
 
-Path#pod resolve path [Str:path] {
-    return [Path_from [path]].expand_user;
+Path#pod expand path [Str:str] {
+    return pod expand path [Path_from [str]];
+}
+
+Path#pod expand path [Path:path] {
+    path = [path].expand_user;
+    // this prevents problems like 'rm *' failing with '-.txt'
+    if ![path].is_absolute && path.parts[0]? != "." {
+        [path.parts].insert[0]["."];
+    };
+    return path;
+}
+
+Str?#lookup [Str:name] in PATH {
+    Str?:maybe_PATH = get env var ["PATH"];
+    if !maybe_PATH {
+        return null;
+    };
+    Str:PATH = [maybe_PATH].unwrap;
+    Path:name_path = pod expand path [name];
+    for Str:part in [PATH].split[":"] {
+        Path:candidate = [Path_from [part]] / [name_path];
+        if [candidate].is_file {
+            return [candidate].stringify;
+        };
+    };
+    return null;
 }
 
 $ErrorBundle#IO error msg: [Str:msg] path: [Path?:maybe_path] {

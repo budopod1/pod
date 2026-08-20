@@ -311,12 +311,8 @@ TokenizationResult#tokenize [Str:input] {
         (0) {
             if [byte].is_ignored {
 
-            } elif byte == '"' {
+            } elif byte == '"' || byte == '\'' {
                 parse_state = 1;
-                token_start = index;
-                so_far = Str [];
-            } elif byte == '\'' {
-                parse_state = 3;
                 token_start = index;
                 so_far = Str [];
             } elif (byte == '-' && !is_end && [input[index+1]].is_digit)
@@ -344,7 +340,7 @@ TokenizationResult#tokenize [Str:input] {
             };
         }
         (1) {
-            if byte == '"' {
+            if byte == input[token_start] {
                 [tokens.ids].append[T_STR];
                 [tokens.start_indexes].append[token_start];
                 [tokens.end_indexes].append[index];

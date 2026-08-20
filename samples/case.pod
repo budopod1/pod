@@ -1,0 +1,15 @@
+set l = (inputline "digit? ")
+
+(case $l
+"1" {
+    print "got 1"
+}
+(par = "2") {
+    print "got 2"
+}
+{<= (ord "5") (ord $0) (ord "9")} {
+    print 'got between 5 and 9'
+}
+{
+    print "Got something else"
+})

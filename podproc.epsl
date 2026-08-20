@@ -1,6 +1,7 @@
 %import platform;
 %import iotools;
 %import subproc;
+%import frames;
 %import paths;
 %import vals;
 %import eval;
@@ -30,50 +31,82 @@ Str#[$PodVal:val].cmd_stringify {
     return [val].get_string;
 }
 
-PodProcess?#start proc with [[$PodVal]:args] {
-    [ProcEnvVal]:vars = [ProcEnvVal] [];
+#set output redirection [ProcInitInfo:init] to [Str:str] in [PodStack:stack] stdout: [Bool:stdout] stderr: [Bool:stderr] {
+    // todo implement
+}
 
-    [Str]:arg_strs = [Str] [];
+#process cmd symbol arg [Str:str] on [ProcInitInfo:init] in [PodStack:stack] {
+    // the target, coming after the '>', can be:
+    // 1 (redirect to stdout)
+    // 2 (redirect to stderr)
+    // . (capture as result)
+    // $.* (get the variable's value, repeat this selection)
+    // .* (redirect to file)
+    if str[0]? == '>' {
+        set output redirection [init] to [[str].slice_from[1]]
+            in [stack] stdout: [true] stderr: [false];
+    } elif str[1]? == '>' {
+        Bool:stdout = false;
+        Bool:stderr = false;
+        switch str[0]
+        ('1') {
+            stdout = true;
+        }
+        ('2') {
+            stderr = true;
+        }
+        ('&') {
+            stdout = true;
+            stderr = true;
+        }
+        {
+            Str:msg = "cannot redirection from '{}'" % str[0];
+            temp error msg: [msg];
+        };
+        set output redirection [init] to [[str].slice_from[2]]
+            in [stack] stdout: [stdout] stderr: [stderr];
+    } elif str[0]? == '<' {
+        abort ["input redirection not implemented"];
+    } elif ([str].index_of["*"]) || ([str].index_of["?"])
+        || ([str].index_of["["]) || (str[0]? == '~') {
+        Str:path_str = [pod expand path [str]].stringify;
+        [init.args].extend[glob_paths[[Str] [path_str]]];
+    } else {
+        [init.args].append[str];
+    };
+}
+
+PodProcess?#start proc with [[$PodVal]:args] in [PodStack:stack] {
+    ProcInitInfo:init = ProcInitInfo [
+        0, null, // stdout
+        0, null, // stderr
+        [ProcEnvVal] [],
+        "",
+        [Str] []
+    ];
+
     for $PodVal:arg in args {
         given arg as PodNil:nil {
             continue;
         } given arg as PodEnvVar:pod_env_var {
-            [vars].append[ProcEnvVal [
+            [init.env_vals].append[ProcEnvVal [
                 [pod_env_var.var_name].get_string,
                 [pod_env_var.var_val].get_string
             ]];
             continue;
         } given arg as PodSymbol:symbol {
-            // the target, coming after the '>', can be:
-            // 1 (redirect to stdout)
-            // 2 (redirect to stderr)
-            // . (capture as result)
-            // $.* (get the variable's value, repeat this selection)
-            // .* (redirect to file)
-            Str:str = symbol.str;
-            if str[0]? == '>' {
-
-            } elif str[1]? == '>' {
-
-            } elif str[0]? == '<' {
-
-            } elif ([str].index_of["*"]) || ([str].index_of["?"])
-                || ([str].index_of["["]) || (str[0]? == '~') {
-                Str:path_str = [pod resolve path [str]].stringify;
-                [arg_strs].extend[glob_paths[[Str] [path_str]]];
-                continue;
-            };
+            process cmd symbol arg [symbol.str] on [init] in [stack];
+            continue;
         };
-        [arg_strs].append[[arg].cmd_stringify];
+        [init.args].append[[arg].cmd_stringify];
+    };
+
+    if !init.args {
+        temp error msg: ["program name not specified"];
     };
     
-    ProcessResult:proc_result = start_proc [ProcInitInfo [
-        0, null, // stdout
-        0, null, // stderr
-        vars,
-        arg_strs[0],
-        arg_strs
-    ]];
+    init.program = init.args[0];
+    ProcessResult:proc_result = start_proc [init];
 
     given proc_result.maybe_process as Process:proc {
         return PodProcess ["process", proc];

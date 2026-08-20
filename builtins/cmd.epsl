@@ -43,9 +43,20 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
     switch builtin.name
+    ("wherecmd") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Str:name = [args[0]].get_string;
+        given lookup [name] in PATH as Str:result {
+            return PodStr [result];
+        } else {
+            return pod nil;
+        };
+    }
+
     ("cmd") {
         Str?:cap_name = extract status cap name in [args];
-        given start proc with [args] as PodProcess:proc {
+        given start proc with [args] in [stack] as PodProcess:proc {
             wait for_ [proc] completion;
             check status [proc] cap: [cap_name] in [stack];
             return pod nil;
@@ -54,7 +65,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("proc") {
-        given start proc with [args] as PodProcess:proc {
+        given start proc with [args] in [stack] as PodProcess:proc {
             return proc;
         };
         return null;
@@ -64,7 +75,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         require [args] all match [TxtPattern []];
         [Str]:patterns = [Str] [];
         for $PodVal:val in args {
-            Path:path = pod resolve path [[val].get_string];
+            Path:path = pod expand path [[val].get_string];
             [patterns].append[[path].stringify];
         };
         [$PodVal]:elems = [$PodVal] [];

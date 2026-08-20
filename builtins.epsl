@@ -25,6 +25,14 @@ IfBuiltinData {
     $PodVal?:else_,
 }
 
+@extends BuiltinData;
+CaseBuiltinData {
+    $PodVal:val,
+    [$PodVal]:case_conds,
+    [$PodVal]:case_bodies,
+    $PodVal?:default_body
+}
+
 PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
     if base > 16 {
         abort ["Expected base 16 or less, not {}" % base];
@@ -364,6 +372,60 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         return null;
     }
 
+    ("case") {
+        given frame.data as CaseBuiltinData:data {
+            if !data.case_bodies {
+                given data.default_body as $PodVal:default_body {
+                    $PodFrame:sub_frame = make frame in [stack]
+                        of [default_body]
+                        args: [[$PodVal] [data.val]];
+                    replace top of [stack] with [sub_frame];
+                    return null;
+                } else {
+                    return pod nil;
+                };
+            };
+            $PodVal:cond_val = pod bool [false];
+            if [data.case_bodies].len > [data.case_conds].len {
+                cond_val = [frame.recieved].unwrap;
+            } else {
+                $PodVal:cond = [data.case_conds].pop[0];
+                given cond as $PodFn:fn {
+                    $PodFrame:sub_frame = make frame in [stack]
+                        of [fn] args: [[$PodVal] [data.val]];
+                    [stack.frames].append[sub_frame];
+                    return null;
+                } else {
+                    cond_val = pod bool [[cond] equals [data.val]];
+                };
+            };
+            $PodVal:case_body = [data.case_bodies].pop[0];
+            if [cond_val].is_truthy {
+                $PodFrame:sub_frame = make frame in [stack]
+                    of [case_body]
+                    args: [[$PodVal] [data.val, cond_val]];
+                replace top of [stack] with [sub_frame];
+            };
+            return null;
+        };
+        require between [1] and [null] in [args];
+        [$PodVal]:case_conds = [$PodVal] [];
+        [$PodVal]:case_bodies = [$PodVal] [];
+        $PodVal?:default_body = null;
+        for W:i enumerating args from 1 step 2 {
+            if i + 1 >= [args].len {
+                default_body = args[i];
+            } else {
+                [case_conds].append[args[i]];
+                [case_bodies].append[args[i + 1]];
+            };
+        };
+        frame.data = CaseBuiltinData [
+            args[0], case_conds, case_bodies, default_body
+        ];
+        return null;
+    }
+
     ("while") {
         given frame.data as WhileBuiltinData:data {
             if data.cond_ran {
@@ -689,6 +751,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "~/",
         "%",
         "^",
+        ".",
         "<",
         ">",
         "<=",
@@ -722,6 +785,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "!",
         "forever",
         "if",
+        "case",
         "while",
         "choose",
         "return",
@@ -754,6 +818,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
         "print",
         "inputline",
+        "promptoptions",
         "getenv",
         "setenv",
         "unsetenv",
@@ -761,9 +826,12 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "unixtime",
         "perfcounter",
         "exit",
+        "ep",
+        // todo add more path tools here
         "cwd",
         "cd",
 
+        "wherecmd",
         "cmd",
         "proc",
         "glob",

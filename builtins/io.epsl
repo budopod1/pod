@@ -39,6 +39,23 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         return PodStr [inputline[result]];
     }
+
+    ("promptoptions") {
+        require between [2] and [null] in [args];
+        require [args] all match [TxtPattern []];
+        for L:i enumerating args from 1 {
+            println["{}) {}" % i % [args[i]].get_string];
+        };
+        while true {
+            Str:reply = inputline[[args[0]].get_string];
+            given parse_int[reply] as Z:num {
+                if num > 1 || num < [args].len {
+                    return args[num];
+                };
+            };
+            println["Invalid option {}" % reply];
+        };
+    }
     
     ("getenv") {
         require between [1] and [1] in [args];
@@ -100,9 +117,16 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         abort;
     }
 
+    ("ep") { // expand path
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Str:str = [args[0]].get_string;
+        return PodStr [[pod expand path [str]].stringify];
+    }
+
     ("cwd") {
-        given get_cwd_path_str as Str:cwd {
-            return PodStr [cwd];
+        given cwd_Path as Path:cwd {
+            return PodStr [[pod expand path [cwd]].stringify];
         } else {
             temp error msg: ["Cannot determine cwd"];
             abort;
@@ -116,7 +140,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             require [args[0]] matches [TxtPattern []];
             pathstr = [args[0]].get_string;
         };
-        Path:path = pod resolve path [pathstr];
+        Path:path = pod expand path [pathstr];
         if ![path].cd_to {
             temp error msg: ["Cannot cd to {}" % [path].stringify];
         };

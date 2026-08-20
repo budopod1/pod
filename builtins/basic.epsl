@@ -123,6 +123,15 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
             return PodFloat [x];
         };
     }
+
+    (".") {
+        Str:str = Str [];
+        for $PodVal:arg in args {
+            [str].extend[[arg].get_string];
+        };
+        return PodStr [str];
+    }
+
     ("<") {
         if [args].len <= 1 {
             return pod bool [true];
