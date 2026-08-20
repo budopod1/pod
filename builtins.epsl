@@ -827,9 +827,16 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "perfcounter",
         "exit",
         "ep",
-        // todo add more path tools here
+        "fileext",
+        "filestem",
         "cwd",
         "cd",
+        "absp",
+        "existsp",
+        "filep",
+        "dirp",
+        "symlinkp",
+        "readdir",
 
         "wherecmd",
         "cmd",

@@ -1,5 +1,6 @@
 %import pattern;
 %import frames;
+%import paths;
 %import eval;
 %import vals;
 
@@ -60,6 +61,14 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
     }
 
     ("/") {
+        if [args].all_match[TxtPattern []] {
+            Path:result = Path_from ["."];
+            for $PodVal:arg in args {
+                Path:segment = Path_from [[arg].get_string];
+                result = [result] / [[segment].expand_user];
+            };
+            return PodStr [[result].stringify];
+        };
         require between [1] and [null] in [args];
         require [args] all match [NumberPattern []];
         R:x = [args[0]] as float;

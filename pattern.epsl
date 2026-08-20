@@ -129,12 +129,12 @@ Bool#[[$PodVal]:vals].all_match[$Pattern:pattern] {
 #require between [L:min] and [L?:maybe_max] in [[$PodVal]:vals] {
     L:count = [vals].len;
     if count < min {
-        Str:msg = "required all least {} values, got {}" % min % count;
+        Str:msg = "required at least {} values, got {}" % min % count;
         temp error msg: [msg];
     };
     given maybe_max as L:max {
         if count > max {
-            Str:msg = "required all most {} values, got {}" % max % count;
+            Str:msg = "required at most {} values, got {}" % max % count;
             temp error msg: [msg];
         };
     };

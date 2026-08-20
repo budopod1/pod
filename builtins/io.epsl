@@ -124,6 +124,20 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         return PodStr [[pod expand path [str]].stringify];
     }
 
+    ("fileext") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Path:path = Path_from [[args[0]].get_string];
+        return PodStr [[path].extension];
+    }
+
+    ("filestem") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Path:path = Path_from [[args[0]].get_string];
+        return PodStr [[path].stem];
+    }
+
     ("cwd") {
         given cwd_Path as Path:cwd {
             return PodStr [[pod expand path [cwd]].stringify];
@@ -145,6 +159,60 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             temp error msg: ["Cannot cd to {}" % [path].stringify];
         };
         return pod nil;
+    }
+
+    ("absp") { // absolute?
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Path:path = [Path_from [[args[0]].get_string]].expand_user;
+        return pod bool [[path].is_absolute];
+    }
+
+    ("existsp") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Path:path = [Path_from [[args[0]].get_string]].expand_user;
+        return pod bool [[path].exists];
+    }
+
+    ("filep") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Path:path = [Path_from [[args[0]].get_string]].expand_user;
+        return pod bool [[path].is_file];
+    }
+
+    ("dirp") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Path:path = [Path_from [[args[0]].get_string]].expand_user;
+        return pod bool [[path].is_dir];
+    }
+
+    ("symlinkp") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Path:path = [Path_from [[args[0]].get_string]].expand_user;
+        return pod bool [[path].is_symlink];
+    }
+
+    ("readdir") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [TxtPattern []];
+        Path:dir = [Path_from [[args[0]].get_string]].expand_user;
+        given [dir].dir_items as [Str]:items {
+            [$PodVal]:elems = [$PodVal] [];
+            for Str:item in items {
+                if ([item] equals ["."]) || ([item] equals [".."]) {
+                    continue;
+                };
+                Str:str = [[dir] / [item]].stringify;
+                [elems].append[PodStr [str]];
+            };
+            return PodArray [elems];
+        } else {
+            return pod nil;
+        };
     }
     
     {
