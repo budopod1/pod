@@ -1,0 +1,8 @@
+defun countdown (args i {!
+    if (= $i 0) {
+        return $t
+    }
+    tailc countdown (- $i 1)
+})
+
+print (countdown 10000000)

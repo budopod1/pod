@@ -1,4 +1,5 @@
 %import platform;
+%import pattern;
 %import iotools;
 %import subproc;
 %import frames;
@@ -31,8 +32,33 @@ Str#[$PodVal:val].cmd_stringify {
     return [val].get_string;
 }
 
-#set output redirection [ProcInitInfo:init] to [Str:str] in [PodStack:stack] stdout: [Bool:stdout] stderr: [Bool:stderr] {
-    // todo implement
+ProcOutputRedirect#make output redirection from [Str:str] in [PodStack:stack] {
+    if [str] equals ["."] {
+        // capture
+        return ProcOutputRedirect [3, null];
+    } elif [str] equals ["&1"] {
+        // redirect to stdout
+        return ProcOutputRedirect [1, null];
+    } elif [str] equals ["&2"] {
+        // redirect to stderr
+        return ProcOutputRedirect [2, null];
+    } elif !str {
+        temp error msg: ["expected redirection target"];
+        abort;
+    } else {
+        if str[0] == '$' {
+            Str:name = [str].slice_from[1];
+            $PodVal:val = lookup [name]
+                in [top lexical frame in [stack]];
+            if ![val].matches[TxtPattern []] {
+                Str:msg = "expected string or symbol for redirect path";
+                temp error msg: [msg];
+            };
+            return ProcOutputRedirect [4, [val].get_string];
+        } else {
+            return ProcOutputRedirect [4, str];
+        };
+    };
 }
 
 #process cmd symbol arg [Str:str] on [ProcInitInfo:init] in [PodStack:stack] {
@@ -43,28 +69,26 @@ Str#[$PodVal:val].cmd_stringify {
     // $.* (get the variable's value, repeat this selection)
     // .* (redirect to file)
     if str[0]? == '>' {
-        set output redirection [init] to [[str].slice_from[1]]
-            in [stack] stdout: [true] stderr: [false];
+        init.stdout_dest = make output redirection
+            from [[str].slice_from[1]] in [stack];
     } elif str[1]? == '>' {
-        Bool:stdout = false;
-        Bool:stderr = false;
+        ProcOutputRedirect:redirect = make output redirection
+            from [[str].slice_from[2]] in [stack];
         switch str[0]
         ('1') {
-            stdout = true;
+            init.stdout_dest = redirect;
         }
         ('2') {
-            stderr = true;
+            init.stderr_dest = redirect;
         }
         ('&') {
-            stdout = true;
-            stderr = true;
+            init.stdout_dest = redirect;
+            init.stderr_dest = redirect;
         }
         {
-            Str:msg = "cannot redirection from '{}'" % str[0];
+            Str:msg = "cannot make redirection from '{}'" % str[0];
             temp error msg: [msg];
         };
-        set output redirection [init] to [[str].slice_from[2]]
-            in [stack] stdout: [stdout] stderr: [stderr];
     } elif str[0]? == '<' {
         abort ["input redirection not implemented"];
     } elif ([str].index_of["*"]) || ([str].index_of["?"])
@@ -78,8 +102,8 @@ Str#[$PodVal:val].cmd_stringify {
 
 PodProcess?#start proc with [[$PodVal]:args] in [PodStack:stack] {
     ProcInitInfo:init = ProcInitInfo [
-        0, null, // stdout
-        0, null, // stderr
+        ProcOutputRedirect [0, null],
+        ProcOutputRedirect [0, null],
         [ProcEnvVal] [],
         "",
         [Str] []

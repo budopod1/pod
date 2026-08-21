@@ -13,6 +13,7 @@
 
 #include <poll.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -31,7 +32,11 @@
 
 #define Estr_to_Cstr(a) epsl_Estr_to_Cstr((struct Array*)(a))
 
-ProcError *proc_errorf(const char *format, ...) {
+static void close_real_fd(int fd) {
+    if (fd != -1) close(fd);
+}
+
+static ProcError *proc_errorf(const char *format, ...) {
     va_list vargs1;
     va_start(vargs1, format);
     va_list vargs2;
@@ -68,7 +73,13 @@ static void subproc_set_env(ARRAY_ProcEnvVal *env_vals) {
     }
 }
 
-noreturn static void subproc_run(ProcInitInfo *info) {
+struct RedirectFDs {
+    int out_pipe;
+    int stdout_file;
+    int stderr_file;
+};
+
+noreturn static void subproc_run(ProcInitInfo *info, struct RedirectFDs redirect_fds) {
     subproc_set_env(info->env_vals);
 
     EPSL_STR_TO_C_STR(info->program, cmd);
@@ -83,27 +94,127 @@ noreturn static void subproc_run(ProcInitInfo *info) {
 
     args_buffer[info->args->length] = NULL;
 
+    int dup_status = 0;
+
+    switch (info->stdout_dest->mode) {
+    case OUTMODE_NONE:
+    case OUTMODE_TOSTDOUT:
+        break;
+    case OUTMODE_TOSTDERR:
+        dup_status |= dup2(2, 1) == -1;
+        break;
+    case OUTMODE_CAPTURE:
+        dup_status |= dup2(redirect_fds.out_pipe, 1) == -1;
+        break;
+    case OUTMODE_TOFILE:
+        dup_status |= dup2(redirect_fds.stdout_file, 1) == -1;
+        break;
+    default:
+        epsl_panicf("invalid stdout redirection mode");
+    }
+    
+    switch (info->stderr_dest->mode) {
+    case OUTMODE_NONE:
+    case OUTMODE_TOSTDERR:
+        break;
+    case OUTMODE_TOSTDOUT:
+        dup_status |= dup2(1, 2) == -1;
+        break;
+    case OUTMODE_CAPTURE:
+        dup_status |= dup2(redirect_fds.out_pipe, 2) == -1;
+        break;
+    case OUTMODE_TOFILE:
+        dup_status |= dup2(redirect_fds.stderr_file, 2) == -1;
+        break;
+    default:
+        epsl_panicf("invalid stderr redirection mode");
+    }
+
+    if (dup_status) {
+        epsl_panicf("redirection via dup2 failed: %s", strerror(errno));
+    }
+
+    close_real_fd(redirect_fds.out_pipe);
+    close_real_fd(redirect_fds.stdout_file);
+    close_real_fd(redirect_fds.stderr_file);
+
     execvp(cmd, args_buffer);
 
     fprintf(stderr, "Failed to start subprocess %s\n", cmd);
     exit(1);
 }
 
+static ProcError *open_out_file_fd(ProcOutputRedirect *redirect, int *fd) {
+    NULLABLE_ARRAY_Byte *path = redirect->file;
+    if (path == NULL) {
+        epsl_panicf("expected path when redirecting output to file");
+    }
+    EPSL_STR_TO_C_STR(path, c_path);
+    *fd = open(c_path, O_CREAT | O_TRUNC | O_WRONLY, 0b110110100);
+    ProcError *err = NULL;
+    if (*fd == -1) {
+        err = proc_errorf(
+            "cannot redirect to %s: %s", c_path, strerror(errno)
+        );
+    }
+    CLEANUP_CONV_C_STR(c_path);
+    return err;
+}
+
 ProcessResult *SPR_start_proc(ProcInitInfo *info) {
+    int out_pipe[2] = {-1};
+
+    if (info->stdout_dest->mode == OUTMODE_CAPTURE
+        || info->stderr_dest->mode == OUTMODE_CAPTURE) {
+        if (pipe(out_pipe)) {
+            return result_error(proc_errorf(
+                "failed to create pipe: %s", strerror(errno)
+            ));
+        }
+    }
+
+    struct RedirectFDs redirect_fds = {
+        .out_pipe = out_pipe[0],
+        .stdout_file = -1,
+        .stderr_file = -1,
+    };
+
+    if (info->stdout_dest->mode == OUTMODE_TOFILE) {
+        ProcError *err = open_out_file_fd(
+            info->stdout_dest, &redirect_fds.stdout_file
+        );
+        if (err != NULL) return result_error(err);
+    }
+    if (info->stderr_dest->mode == OUTMODE_TOFILE) {
+        ProcError *err = open_out_file_fd(
+            info->stderr_dest, &redirect_fds.stderr_file
+        );
+        if (err != NULL) return result_error(err);
+    }
+
     pid_t pid = fork();
 
+    if (pid == 0) {
+        close_real_fd(out_pipe[1]);
+        subproc_run(info, redirect_fds);
+    }
+
+    close_real_fd(out_pipe[0]);
+    close_real_fd(redirect_fds.stdout_file);
+    close_real_fd(redirect_fds.stderr_file);
+
     if (pid < 0) {
+        close_real_fd(out_pipe[1]);
         return result_error(proc_errorf(
             "Failed to start subprocess: %s", strerror(errno)
         ));
-    } else if (pid == 0) {
-        subproc_run(info);
     }
 
     Process *process = epsl_malloc(sizeof(*process));
     process->ref_counter = 1;
     process->program = info->program;
     process->program->ref_counter++;
+    process->output_fd = out_pipe[1];
     process->pid = pid;
     process->completed = false;
     process->result_status = -1;

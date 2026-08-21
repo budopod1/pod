@@ -8,9 +8,15 @@ PodRegisteredFn {
     $PodFn:fn
 }
 
+Redirection {
+    Z64:target,
+    Z64:old_fd
+}
+
 PodStack {
     [$PodFrame]:frames,
-    [PodRegisteredFn]:fns
+    [PodRegisteredFn]:fns,
+    [Redirection]:redirections
 }
 
 PodFrameVar {
@@ -90,7 +96,8 @@ ClearFnPodFrame#make clear frame [PodClearFn:fn] args: [[$PodVal]:args] {
 PodStack#make new stack {
     PodStack:stack = PodStack [
         [$PodFrame] [make root frame],
-        [PodRegisteredFn] []
+        [PodRegisteredFn] [],
+        [Redirection] []
     ];
     register builtin fns [stack];
     return stack;

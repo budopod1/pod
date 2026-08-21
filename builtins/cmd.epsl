@@ -85,6 +85,13 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         return PodArray [elems];
     }
 
+    ("getpid") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [OpaquePattern ["process"]];
+        PodProcess:proc = [args[0]#PodProcess?].unwrap;
+        return PodInt [proc.proc.pid];
+    }
+
     ("getstatus") {
         require between [1] and [1] in [args];
         require [args[0]] matches [OpaquePattern ["process"]];
@@ -131,12 +138,13 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("capstatus") {
-        require between [1] and [1] in [args];
-        require [args[0]] matches [SymbolPattern []];
-        return PodCaptureStatus [
-            "capture-status",
-            [args[0]].get_string
-        ];
+        require between [0] and [1] in [args];
+        Str:var_name = "_";
+        if args {
+            require [args[0]] matches [SymbolPattern []];
+            var_name = [args[0]].get_string;
+        };
+        return PodCaptureStatus ["capture-status", var_name];
     }
     
     {

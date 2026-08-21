@@ -38,24 +38,22 @@ typedef struct ARRAY_ProcEnvVal {
     ProcEnvVal **content;
 } ARRAY_ProcEnvVal;
 
-/*
-output redirect mode key:
-0 - do not redirect
-1 - redirect to stdout (only for stderr)
-2 - redirect to stderr (only for stdout)
-3 - redirect to specified file
-4 - capture
-*/
+#define OUTMODE_NONE 0
+#define OUTMODE_TOSTDOUT 1
+#define OUTMODE_TOSTDERR 2
+#define OUTMODE_CAPTURE 3
+#define OUTMODE_TOFILE 4
+
+typedef struct ProcOutputRedirect {
+    uint64_t ref_counter;
+    uint32_t mode;
+    NULLABLE_ARRAY_Byte *file;
+} ProcOutputRedirect;
 
 typedef struct ProcInitInfo {
     uint64_t ref_counter;
-
-    uint32_t stdout_mode;
-    NULLABLE_ARRAY_Byte *stdout_file;
-
-    uint32_t stderr_mode;
-    NULLABLE_ARRAY_Byte *stderr_file;
-
+    ProcOutputRedirect *stdout_dest;
+    ProcOutputRedirect *stderr_dest;
     ARRAY_ProcEnvVal *env_vals;
     struct ARRAY_Byte *program;
     struct ARRAY_ARRAY_Byte *args;
@@ -64,6 +62,7 @@ typedef struct ProcInitInfo {
 typedef struct Process {
     uint64_t ref_counter;
     struct ARRAY_Byte *program;
+    int64_t output_fd;
     uint32_t pid;
     bool completed;
     int32_t result_status;

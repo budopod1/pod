@@ -18,11 +18,12 @@ int64_t PPF_platform_invalid_int_val(void) {
 
 #ifdef _WIN32
 
-#warning "Windows is not fully supported"
+#error "Windows is not supported"
 
 #else
 
 #include <unistd.h>
+#include <errno.h>
 #include <glob.h>
 
 #endif
@@ -76,4 +77,66 @@ ARRAY_ARRAY_Byte *PPF_glob_paths(ARRAY_ARRAY_Byte *patterns) {
 
     return matches;
 #endif
+}
+
+bool PPF_fork_proc(void) {
+#ifdef _WIN32
+    epsl_panicf("fork not supported on windows")
+#else
+    pid_t pid = fork();
+    if (pid == -1) {
+        epsl_panicf("fork failed: %s", strerror(errno));
+    } else if (pid == 0) {
+        return true;
+    } else {
+        return false;
+    }
+#endif
+}
+
+PipePair *PPF_make_pipe_pair(void) {
+    int ends[2];
+    int status = pipe(ends);
+    if (status) {
+        epsl_panicf("failed to create pipe: %s", strerror(errno));
+    }
+    PipePair *pair = malloc(sizeof(pair));
+    pair->ref_counter = 0;
+    pair->in = ends[0];
+    pair->out = ends[1];
+    return pair;
+}
+
+int64_t PPF_swap_std_fd(int64_t target, int64_t replacement) {
+    if (target == 0) {
+        fflush(stdin);
+    } else if (target == 1) {
+        fflush(stdout);
+    } else if (target == 2) {
+        fflush(stderr);
+    }
+    int current = dup((int)target);
+    if (current == -1) {
+        epsl_panicf("failed to dup file descriptor %d: %s",
+            (int)target, strerror(errno));
+    }
+    if (dup2((int)replacement, (int)target) == -1) {
+        epsl_panicf("failed to dup2 fd %d to %d: %s",
+            (int)replacement, (int)target, strerror(errno));
+    }
+    close((int)replacement);
+    return current;
+}
+
+void PPF_close_fd(int64_t fd) {
+    close((int)fd);
+}
+
+void PPF_restore_std_fd(int64_t target, int64_t original) {
+    fflush(stdout);
+    if (dup2((int)original, (int)target) == -1) {
+        epsl_panicf("failed to dup2 original fd %d to %d: %s",
+            (int)original, (int)target, strerror(errno));
+    }
+    close((int)original);
 }

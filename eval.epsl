@@ -1,6 +1,8 @@
+%import platform;
 %import builtins;
 %import frames;
 %import vals;
+%import proc;
 %import ast;
 
 #temp error msg: [Str:msg] {
@@ -31,6 +33,16 @@ CallFnVMInstr {
     [W]:spread_args
 }
 
+@extends VMInstr;
+PipeVMInstr {
+    W:dest_target
+}
+
+@extends VMInstr;
+PipeEndVMInstr {
+    Bool:is_child
+}
+
 #compile expr [$PodExpr:expr] to [[$VMInstr]:instrs] {
     given expr as PodLiteralExpr:literal_expr {
         [instrs].append[LiteralVMInstr [literal_expr.val]];
@@ -46,8 +58,11 @@ CallFnVMInstr {
 }
 
 #compile sexpr [PodSExpr:sexpr] to [[$VMInstr]:instrs] {
+    PipeVMInstr?:maybe_pipe_instr = null;
     if sexpr.pipeline {
-        abort ["pipeline not supported"];
+        PipeVMInstr:pipe_instr = PipeVMInstr [0];
+        [instrs].append[pipe_instr];
+        maybe_pipe_instr = pipe_instr;
     };
     [W]:spread_args = [W] [];
     for W:i enumerating sexpr.args {
@@ -64,6 +79,12 @@ CallFnVMInstr {
     [instrs].append[CallFnVMInstr [
         [sexpr.args].len#W, spread_args
     ]];
+    given sexpr.pipeline as PodSExpr:pipe_dest {
+        [instrs].append[PipeEndVMInstr [true]];
+        [maybe_pipe_instr].unwrap.dest_target = [instrs].len#W;
+        compile sexpr [pipe_dest] to [instrs];
+        [instrs].append[PipeEndVMInstr [false]];
+    };
 }
 
 [$VMInstr]#compile fn [PodClearFn:fn] {
@@ -161,6 +182,26 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
 
         $PodFrame:frame = make frame in [stack] using [expanded_vals];
         [stack.frames].append[frame];
+    } given instr as PipeVMInstr:pipe_instr {
+        PipePair:pipe = make_pipe_pair;
+        if fork_proc {
+            close_fd[pipe.in];
+            swap_std_fd[1][pipe.out];
+        } else {
+            close_fd[pipe.out];
+            Z64:old_stdin = swap_std_fd[0][pipe.in];
+            [stack.redirections].append[Redirection [0, old_stdin]];
+            clear_frame.pc = pipe_instr.dest_target;
+        };
+    } given instr as PipeEndVMInstr:pipe_end_instr {
+        if pipe_end_instr.is_child {
+            exit with status [0];
+        } else {
+            Redirection:redirect = [stack.redirections].pop_end;
+            restore_std_fd[redirect.target][redirect.old_fd];
+        };
+    } else {
+        abort ["Unrecognized VM instruction {}" % instr];
     };
 }
 
@@ -174,7 +215,7 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
         [$VMInstr]:instrs = compile fn [clear_frame.fn];
         W:pc = clear_frame.pc;
 
-        if pc == [instrs].len {
+        if pc >= [instrs].len {
             $PodVal:ret_val = pod nil;
             if clear_frame.val_stack {  
                 ret_val = [clear_frame.val_stack].pop_end;
@@ -184,10 +225,10 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
         };
 
         $VMInstr:instr = instrs[pc];
-        execute [instr] on [clear_frame] in [stack];
-
         pc += 1;
         clear_frame.pc = pc;
+
+        execute [instr] on [clear_frame] in [stack];
     } given frame as BuiltinPodFrame:builtin_frame {
         given builtin cycle of [builtin_frame] in [stack]
         as $PodVal:ret_val {

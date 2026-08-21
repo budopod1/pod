@@ -408,8 +408,8 @@ TokenizationResult#tokenize [Str:input] {
                 index -= 1;
                 parse_state = 8;
             } else {
-                is_num_end = true;
-                parse_state = 0;
+                is_num_end = false;
+                parse_state = 9;
                 index -= 1;
             };
             if is_num_end {
@@ -430,8 +430,8 @@ TokenizationResult#tokenize [Str:input] {
                 || (byte == '.' && (![so_far].index_of['.'])) {
                 [so_far].append[byte];
             } else {
-                is_num_end = true;
-                parse_state = 0;
+                is_num_end = false;
+                parse_state = 9;
                 index -= 1;
             };
             if is_num_end {

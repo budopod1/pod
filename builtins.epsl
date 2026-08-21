@@ -497,7 +497,10 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("tailc") {
         require between [1] and [null] in [args];
+        // pop this builtin call from the stack;
+        [stack.frames].pop_end;
         $PodFrame:sub_frame = make frame in [stack] using [args];
+        // replace the underlying function that is now at the top
         replace top of [stack] with [sub_frame];
         return null;
     }
@@ -850,6 +853,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "cmd",
         "proc",
         "glob",
+        "getpid",
         "getstatus",
         "wait",
         "signalproc",
