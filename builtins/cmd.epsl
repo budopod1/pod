@@ -59,7 +59,11 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         given start proc with [args] in [stack] as PodProcess:proc {
             wait for_ [proc] completion;
             check status [proc] cap: [cap_name] in [stack];
-            return pod nil;
+            given get proc out [proc] as Str:out {
+                return PodStr [out];
+            } else {
+                return pod nil;
+            };
         };
         return null;
     }
@@ -102,6 +106,27 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         } else {
             return pod nil;
         };
+    }
+    
+    ("getout") {
+        require between [1] and [1] in [args];
+        require [args[0]] matches [OpaquePattern ["process"]];
+        PodProcess:proc = [args[0]#PodProcess?].unwrap;
+        given get proc out [proc] as Str:out {
+            return PodStr [out];
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("sendin") {
+        require between [2] and [2] in [args];
+        require [args[0]] matches [OpaquePattern ["process"]];
+        require [args[1]] matches [TxtPattern []];
+        PodProcess:proc = [args[0]#PodProcess?].unwrap;
+        Str:txt = [args[1]].get_string;
+        send input [txt] to proc [proc];
+        return pod nil;
     }
 
     ("wait") {

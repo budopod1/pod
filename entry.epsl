@@ -113,7 +113,7 @@ PodFnExpr#parse file [Path:path] {
 
         $PodVal:result = run frame [frame] in [stack];
         if result != pod nil {
-            println[[result].stringify];
+            println[[result].get_string];
         };
     };
 }

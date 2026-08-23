@@ -26,7 +26,7 @@ ARRAY_char *IL_inputline(ARRAY_char *prompt) {
     result->ref_counter = 0;
     result->length = strlen(line);
     result->capacity = result->length + 1;
-    result->content = line;
+    result->content = (char*)line;
 
     return result;
 }

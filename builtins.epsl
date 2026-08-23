@@ -855,6 +855,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "glob",
         "getpid",
         "getstatus",
+        "getout",
+        "sendin",
         "wait",
         "signalproc",
         "env",

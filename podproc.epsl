@@ -32,9 +32,24 @@ Str#[$PodVal:val].cmd_stringify {
     return [val].get_string;
 }
 
+Str#lookup redirect file [Str:str] in [PodStack:stack] {
+    if str[0] == '$' {
+        Str:name = [str].slice_from[1];
+        $PodVal:val = lookup [name]
+            in [top lexical frame in [stack]];
+        if ![val].matches[TxtPattern []] {
+            Str:msg = "expected string or symbol for redirect path";
+            temp error msg: [msg];
+        };
+        return [val].get_string;
+    } else {
+        return str;
+    };
+}
+
 ProcOutputRedirect#make output redirection from [Str:str] in [PodStack:stack] {
     if [str] equals ["."] {
-        // capture
+        // pipe
         return ProcOutputRedirect [3, null];
     } elif [str] equals ["&1"] {
         // redirect to stdout
@@ -46,18 +61,18 @@ ProcOutputRedirect#make output redirection from [Str:str] in [PodStack:stack] {
         temp error msg: ["expected redirection target"];
         abort;
     } else {
-        if str[0] == '$' {
-            Str:name = [str].slice_from[1];
-            $PodVal:val = lookup [name]
-                in [top lexical frame in [stack]];
-            if ![val].matches[TxtPattern []] {
-                Str:msg = "expected string or symbol for redirect path";
-                temp error msg: [msg];
-            };
-            return ProcOutputRedirect [4, [val].get_string];
-        } else {
-            return ProcOutputRedirect [4, str];
-        };
+        Str:file = lookup redirect file [str] in [stack];
+        return ProcOutputRedirect [4, file];
+    };
+}
+
+ProcInputRedirect#make input redirection from [Str:str] in [PodStack:stack] {
+    if [str] equals ["."] {
+        // pipe
+        return ProcInputRedirect [1, null];
+    } else {
+        Str:file = lookup redirect file [str] in [stack];
+        return ProcInputRedirect [2, file];
     };
 }
 
@@ -90,7 +105,8 @@ ProcOutputRedirect#make output redirection from [Str:str] in [PodStack:stack] {
             temp error msg: [msg];
         };
     } elif str[0]? == '<' {
-        abort ["input redirection not implemented"];
+        init.stdin_src = make input redirection from
+            [[str].slice_from[1]] in [stack];
     } elif ([str].index_of["*"]) || ([str].index_of["?"])
         || ([str].index_of["["]) || (str[0]? == '~') {
         Str:path_str = [pod expand path [str]].stringify;
@@ -102,6 +118,7 @@ ProcOutputRedirect#make output redirection from [Str:str] in [PodStack:stack] {
 
 PodProcess?#start proc with [[$PodVal]:args] in [PodStack:stack] {
     ProcInitInfo:init = ProcInitInfo [
+        ProcInputRedirect [0, null],
         ProcOutputRedirect [0, null],
         ProcOutputRedirect [0, null],
         [ProcEnvVal] [],
@@ -149,6 +166,31 @@ PodProcess?#start proc with [[$PodVal]:args] in [PodStack:stack] {
     };
     given await_proc_completion[proc] as ProcError:error {
         temp error msg: [error.msg];
+    };
+}
+
+Str?#get proc out [PodProcess:pod_proc] {
+    Process:proc = pod_proc.proc;
+    given proc.out_data as Str:out_data {
+        given update_proc_output[proc] as ProcError:error {
+            temp error msg: [error.msg];
+        };
+        return [out_data].clone;
+    } else {
+        return null;
+    };
+}
+
+#send input [Str:data] to proc [PodProcess:pod_proc] {
+    Process:proc = pod_proc.proc;
+    given proc.in_data as Str:in_data {
+        [in_data].extend[data];
+        given await_proc_input_sent[proc] as ProcError:error {
+            temp error msg: [error.msg];
+        };
+    } else {
+        Str:msg = "Cannot send input data to process without piped input";
+        temp error msg: [msg];
     };
 }
 

@@ -2,7 +2,7 @@
 #define SUBPROC_H
 
 #ifdef _MSC_VER
-#error "Windows not supported
+#error "Windows not supported"
 #endif
 
 #include <stdbool.h>
@@ -22,7 +22,7 @@ typedef struct ARRAY_ARRAY_Byte {
     uint64_t ref_counter;
     uint64_t capacity;
     uint64_t length;
-    struct ARRAY_Byte **content;
+    ARRAY_Byte **content;
 } ARRAY_ARRAY_Byte;
 
 typedef struct ProcEnvVal {
@@ -41,7 +41,7 @@ typedef struct ARRAY_ProcEnvVal {
 #define OUTMODE_NONE 0
 #define OUTMODE_TOSTDOUT 1
 #define OUTMODE_TOSTDERR 2
-#define OUTMODE_CAPTURE 3
+#define OUTMODE_PIPE 3
 #define OUTMODE_TOFILE 4
 
 typedef struct ProcOutputRedirect {
@@ -50,8 +50,19 @@ typedef struct ProcOutputRedirect {
     NULLABLE_ARRAY_Byte *file;
 } ProcOutputRedirect;
 
+#define INMODE_NONE 0
+#define INMODE_PIPE 1
+#define INMODE_FROMFILE 2
+
+typedef struct ProcInputRedirect {
+    uint64_t ref_counter;
+    uint32_t mode;
+    NULLABLE_ARRAY_Byte *file;
+} ProcInputRedirect;
+
 typedef struct ProcInitInfo {
     uint64_t ref_counter;
+    ProcInputRedirect *stdin_src;
     ProcOutputRedirect *stdout_dest;
     ProcOutputRedirect *stderr_dest;
     ARRAY_ProcEnvVal *env_vals;
@@ -63,7 +74,11 @@ typedef struct Process {
     uint64_t ref_counter;
     struct ARRAY_Byte *program;
     int64_t output_fd;
+    NULLABLE_ARRAY_Byte *out_data;
+    int64_t input_fd;
+    NULLABLE_ARRAY_Byte *in_data;
     uint32_t pid;
+    bool no_new_input;
     bool completed;
     int32_t result_status;
 } Process, NULLABLE_Process;
@@ -79,7 +94,13 @@ typedef struct ProcessResult {
     NULLABLE_ProcError *maybe_error;
 } ProcessResult;
 
+void DESTRUCT_Process(Process *proc);
+
 ProcessResult *SPR_start_proc(ProcInitInfo *info);
+
+NULLABLE_ProcError *SPR_update_proc_output(Process *process);
+
+NULLABLE_ProcError *SPR_await_proc_input_sent(Process *process);
 
 NULLABLE_ProcError *SPR_await_proc_completion(Process *process);
 
