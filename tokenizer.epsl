@@ -407,9 +407,13 @@ TokenizationResult#tokenize [Str:input] {
                 is_num_end = false;
                 index -= 1;
                 parse_state = 8;
-            } else {
+            } elif [byte].is_symbol {
                 is_num_end = false;
                 parse_state = 9;
+                index -= 1;
+            } else {
+                is_num_end = true;
+                parse_state = 0;
                 index -= 1;
             };
             if is_num_end {
@@ -429,9 +433,13 @@ TokenizationResult#tokenize [Str:input] {
             if ([byte].is_digit)
                 || (byte == '.' && (![so_far].index_of['.'])) {
                 [so_far].append[byte];
-            } else {
+            } elif [byte].is_symbol {
                 is_num_end = false;
                 parse_state = 9;
+                index -= 1;
+            } else {
+                is_num_end = true;
+                parse_state = 0;
                 index -= 1;
             };
             if is_num_end {
