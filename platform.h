@@ -41,3 +41,9 @@ int64_t PPF_swap_std_fd(int64_t target, int64_t replacement);
 void PPF_close_fd(int64_t fd);
 
 void PPF_restore_std_fd(int64_t target, int64_t original);
+
+extern bool is_sigint_disregarded;
+
+void PPF_set_sigint_disregarded(bool disregard);
+
+void restore_sigint_handler(void);

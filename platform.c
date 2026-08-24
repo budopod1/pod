@@ -22,6 +22,7 @@ int64_t PPF_platform_invalid_int_val(void) {
 
 #else
 
+#include <signal.h>
 #include <unistd.h>
 #include <errno.h>
 #include <glob.h>
@@ -139,4 +140,26 @@ void PPF_restore_std_fd(int64_t target, int64_t original) {
             (int)original, (int)target, strerror(errno));
     }
     close((int)original);
+}
+
+bool is_sigint_disregarded = false;
+
+static void disregard_sigint_handler(int s) {}
+
+void PPF_set_sigint_disregarded(bool disregard) {
+    is_sigint_disregarded = disregard;
+    restore_sigint_handler();
+}
+
+void restore_sigint_handler(void) {
+    struct sigaction act;
+    sigemptyset(&act.sa_mask);
+    if (is_sigint_disregarded) {
+        act.sa_handler = &disregard_sigint_handler;
+        act.sa_flags = SA_RESTART;
+    } else {
+        act.sa_handler = SIG_IGN;
+        act.sa_flags = 0;
+    }
+    sigaction(SIGINT, &act, NULL);
 }

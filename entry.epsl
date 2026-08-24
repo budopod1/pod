@@ -4,6 +4,7 @@
 %import astparser;
 %import tokenizer;
 %import inputline;
+%import platform;
 %import parsing;
 %import iotools;
 %import grouper;
@@ -97,6 +98,8 @@ PodFnExpr#parse file [Path:path] {
         args: [[$PodVal] []];
     frame.important = true;
     frame.label = "repl";
+
+    set_sigint_disregarded[true];
 
     while true {
         Str:input = inputline["> "];
