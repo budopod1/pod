@@ -5,10 +5,6 @@
 %import proc;
 %import ast;
 
-#temp error msg: [Str:msg] {
-    abort ["RUNTIME ERROR: {}" % msg];
-}
-
 @super;
 VMInstr {}
 
@@ -41,6 +37,11 @@ PipeVMInstr {
 @extends VMInstr;
 PipeEndVMInstr {
     Bool:is_child
+}
+
+FrameRunResult {
+    $PodVal?:ret_val,
+    PodError?:error
 }
 
 #compile expr [$PodExpr:expr] to [[$VMInstr]:instrs] {
@@ -108,6 +109,7 @@ $PodFrame#make frame in [PodStack:stack] of [$PodFn:fn] args: [[$PodVal]:args] {
         maybe_frame = BuiltinPodFrame [
             args,
             null,
+            null,
             builtin_fn,
             null
         ];
@@ -118,15 +120,16 @@ $PodFrame#make frame in [PodStack:stack] of [$PodFn:fn] args: [[$PodVal]:args] {
     return [maybe_frame].unwrap;
 }
 
-$PodFrame#make frame in [PodStack:stack] using [[$PodVal]:args] {
+$PodFrame?#make frame in [PodStack:stack] using [[$PodVal]:args] {
     if !args {
-        temp error msg: ["at least one argument is required"];
+        [stack].error["arg"]["at least one argument is required"];
+        return null;
     };
     
     return make frame in [stack] of [args[0]] args: [[args].slice_from[1]];
 }
 
-$PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:args] {
+$PodFrame?#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:args] {
     $PodFn?:maybe_fn = null;
     given fn_val as $PodFn:fn {
         maybe_fn = fn;
@@ -139,8 +142,8 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
                 args: [[[$PodVal] [fn_val]] + [args]];
         };
     } else {
-        temp error msg: ["cannot execute {}" % [fn_val].stringify_type];
-        abort;
+        [stack].error["arg"]["cannot execute {}" % [fn_val].stringify_type];
+        return null;
     };
 
     $PodFn:fn = [maybe_fn].unwrap;
@@ -152,9 +155,9 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
     given instr as LiteralVMInstr:literal_instr {
         [val_stack].append[literal_instr.val];
     } given instr as VarVMInstr:var_instr {
-        [val_stack].append[
-            lookup [var_instr.name] in [clear_frame]
-        ];
+        given lookup [var_instr.name] in [clear_frame] in [stack] as $PodVal:val {
+            [val_stack].append[val];
+        };
     } given instr as MakeFnVMInstr:make_fn_instr {
         [val_stack].append[
             PodClearFn [make_fn_instr.src, clear_frame]
@@ -180,8 +183,10 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
             [val_stack].pop_end;
         };
 
-        $PodFrame:frame = make frame in [stack] using [expanded_vals];
-        [stack.frames].append[frame];
+        given make frame in [stack] using [expanded_vals]
+        as $PodFrame:frame {
+            [stack.frames].append[frame];
+        };
     } given instr as PipeVMInstr:pipe_instr {
         PipePair:pipe = make_pipe_pair;
         if fork_proc {
@@ -205,8 +210,17 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
     };
 }
 
-#run cycle in [PodStack:stack] {
+Bool#run cycle in [PodStack:stack] {
     $PodFrame:frame = [stack.frames].at[-1];
+    given stack.active_error as PodError:active_error {
+        given frame.landing as ErrorLanding:landing {
+            landing.caught_error = active_error;
+            stack.active_error = null;
+        } else {
+            [stack.frames].pop_end;
+        };
+        return false;
+    };
     given frame as ClearFnPodFrame:clear_frame {
         given clear_frame.recieved as $PodVal:recieved {
             [clear_frame.val_stack].append[recieved];
@@ -221,7 +235,7 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
                 ret_val = [clear_frame.val_stack].pop_end;
             };
             pop frame in [stack] returning [ret_val];
-            return;
+            return false;
         };
 
         $VMInstr:instr = instrs[pc];
@@ -230,25 +244,46 @@ $PodFrame#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:ar
 
         execute [instr] on [clear_frame] in [stack];
     } given frame as BuiltinPodFrame:builtin_frame {
-        given builtin cycle of [builtin_frame] in [stack]
-        as $PodVal:ret_val {
-            pop frame in [stack] returning [ret_val];
+        $PodVal?:maybe_ret = builtin cycle of [builtin_frame] in [stack];
+        if stack.active_error {
+            return false;
         };
+        given maybe_ret as $PodVal:ret {
+            pop frame in [stack] returning [ret];
+        };
+    } given frame as RootPodFrame:root_frame {
+        return true;
     } else {
         abort ["Cannot run cycle in frame {}" % frame];
     };
     frame.recieved = null;
+    return false;
 }
 
-$PodVal#run frame [$PodFrame:frame] in [PodStack:stack] {
+FrameRunResult#run frame [$PodFrame:frame] in [PodStack:stack] {
     $PodFrame:top_frame = [stack.frames].at[-1];
+    if !(top_frame#RootPodFrame?) {
+        abort ["Cannot run new frame above non root frame"];
+    };
+    ErrorLanding:landing = [top_frame.landing].unwrap;
     [stack.frames].append[frame];
 
-    while !top_frame.recieved {
-        run cycle in [stack];
+    while !run cycle in [stack] {};
+
+    given [top_frame].consume_error as PodError:error {
+        return FrameRunResult [null, error];
     };
 
     $PodVal:ret_val = [top_frame.recieved].unwrap;
     top_frame.recieved = null;
-    return ret_val;
+    return FrameRunResult [ret_val, null];
+}
+
+#display error [PodError:error] {
+    if ([error.type] equals ["cmd"]) && error.msg {
+        println[error.msg];
+    } else {
+        println["{} error:" % error.type];
+        println[error.msg];
+    };
 }

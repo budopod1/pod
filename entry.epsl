@@ -71,7 +71,15 @@ PodFnExpr#parse file [Path:path] {
     ClearFnPodFrame:frame = make clear frame [fn] args: [file_args];
     frame.important = true;
     frame.label = "prgm";
-    run frame [frame] in [stack];
+    given [path].realpath as Path:full_path {
+        [frame.vars].append[PodFrameVar [
+            "FILE", PodStr [[full_path].stringify]
+        ]];
+    };
+    FrameRunResult:result = run frame [frame] in [stack];
+    given result.error as PodError:error {
+        display error [error];
+    };
 }
 
 #run file [Path:path] args: [[Str]:str_args] {
@@ -114,9 +122,13 @@ PodFnExpr#parse file [Path:path] {
         frame.val_stack = [$PodVal] [];
         frame.recieved = null;
 
-        $PodVal:result = run frame [frame] in [stack];
-        if result != pod nil {
-            println[[result].get_string];
+        FrameRunResult:result = run frame [frame] in [stack];
+        given result.ret_val as $PodVal:ret_val {
+            if ret_val != pod nil {
+                println[[ret_val].get_string];
+            };
+        } given result.error as PodError:error {
+            display error [error];
         };
     };
 }

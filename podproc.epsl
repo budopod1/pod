@@ -32,22 +32,26 @@ Str#[$PodVal:val].cmd_stringify {
     return [val].get_string;
 }
 
-Str#lookup redirect file [Str:str] in [PodStack:stack] {
+Str?#lookup redirect file [Str:str] in [PodStack:stack] {
     if str[0] == '$' {
         Str:name = [str].slice_from[1];
-        $PodVal:val = lookup [name]
-            in [top lexical frame in [stack]];
-        if ![val].matches[TxtPattern []] {
-            Str:msg = "expected string or symbol for redirect path";
-            temp error msg: [msg];
+        given lookup [name] in [top lexical frame in [stack]] in [stack]
+        as $PodVal:val {
+            if ![val].matches[TxtPattern []] {
+                Str:msg = "expected string or symbol for redirect path";
+                [stack].error["cmd"][msg];
+                return null;
+            };
+            return [val].get_string;
+        } else {
+            return null;
         };
-        return [val].get_string;
     } else {
         return str;
     };
 }
 
-ProcOutputRedirect#make output redirection from [Str:str] in [PodStack:stack] {
+ProcOutputRedirect?#make output redirection from [Str:str] in [PodStack:stack] {
     if [str] equals ["."] {
         // pipe
         return ProcOutputRedirect [3, null];
@@ -58,38 +62,52 @@ ProcOutputRedirect#make output redirection from [Str:str] in [PodStack:stack] {
         // redirect to stderr
         return ProcOutputRedirect [2, null];
     } elif !str {
-        temp error msg: ["expected redirection target"];
-        abort;
+        [stack].error["cmd"]["expected redirection target"];
+        return null;
     } else {
-        Str:file = lookup redirect file [str] in [stack];
-        return ProcOutputRedirect [4, file];
+        given lookup redirect file [str] in [stack] as Str:file {
+            return ProcOutputRedirect [4, file];
+        } else {
+            return null;
+        };
     };
 }
 
-ProcInputRedirect#make input redirection from [Str:str] in [PodStack:stack] {
+ProcInputRedirect?#make input redirection from [Str:str] in [PodStack:stack] {
     if [str] equals ["."] {
         // pipe
         return ProcInputRedirect [1, null];
+    } elif !str {
+        [stack].error["cmd"]["expected redirection target"];
+        return null;
     } else {
-        Str:file = lookup redirect file [str] in [stack];
-        return ProcInputRedirect [2, file];
+        given lookup redirect file [str] in [stack] as Str:file {
+            return ProcInputRedirect [2, file];
+        } else {
+            return null;
+        };
     };
 }
 
-#process cmd symbol arg [Str:str] on [ProcInitInfo:init] in [PodStack:stack] {
+Bool#process cmd symbol arg [Str:str] on [ProcInitInfo:init] in [PodStack:stack] {
     // the target, coming after the '>', can be:
     // 1 (redirect to stdout)
     // 2 (redirect to stderr)
     // . (capture as result)
     // $.* (get the variable's value, repeat this selection)
     // .* (redirect to file)
-    if str[0]? == '>' {
-        init.stdout_dest = make output redirection
-            from [[str].slice_from[1]] in [stack];
-    } elif str[1]? == '>' {
-        ProcOutputRedirect:redirect = make output redirection
-            from [[str].slice_from[2]] in [stack];
+    if str[0]? == '>' || str[1]? == '>' {
+        L:off_idx = 1 + (str[0] != '>');
+        ProcOutputRedirect?:maybe_redirect = make output redirection
+            from [[str].slice_from[off_idx]] in [stack];
+        if !maybe_redirect {
+            return true;
+        };
+        ProcOutputRedirect:redirect = [maybe_redirect].unwrap;
         switch str[0]
+        ('>') {
+            init.stdout_dest = redirect;
+        }
         ('1') {
             init.stdout_dest = redirect;
         }
@@ -102,11 +120,16 @@ ProcInputRedirect#make input redirection from [Str:str] in [PodStack:stack] {
         }
         {
             Str:msg = "cannot make redirection from '{}'" % str[0];
-            temp error msg: [msg];
+            [stack].error["cmd"][msg];
+            return true;
         };
     } elif str[0]? == '<' {
-        init.stdin_src = make input redirection from
-            [[str].slice_from[1]] in [stack];
+        given make input redirection from [[str].slice_from[1]] in [stack]
+        as ProcInputRedirect:redirect {
+            init.stdin_src = redirect;
+        } else {
+            return true;
+        };
     } elif ([str].index_of["*"]) || ([str].index_of["?"])
         || ([str].index_of["["]) || (str[0]? == '~') {
         Str:path_str = [pod expand path [str]].stringify;
@@ -114,6 +137,19 @@ ProcInputRedirect#make input redirection from [Str:str] in [PodStack:stack] {
     } else {
         [init.args].append[str];
     };
+    return false;
+}
+
+#[ProcError:proc_err].raise[PodStack:stack] {
+    [stack].error["cmd"][proc_err.msg];
+}
+
+Bool#[ProcError?:maybe_err].maybe_raise[PodStack:stack] {
+    given maybe_err as ProcError:proc_err {
+        [proc_err].raise[stack];
+        return true;
+    };
+    return false;
 }
 
 PodProcess?#start proc with [[$PodVal]:args] in [PodStack:stack] {
@@ -136,14 +172,17 @@ PodProcess?#start proc with [[$PodVal]:args] in [PodStack:stack] {
             ]];
             continue;
         } given arg as PodSymbol:symbol {
-            process cmd symbol arg [symbol.str] on [init] in [stack];
+            if process cmd symbol arg [symbol.str] on [init] in [stack] {
+                return null;
+            };
             continue;
         };
         [init.args].append[[arg].cmd_stringify];
     };
 
     if !init.args {
-        temp error msg: ["program name not specified"];
+        [stack].error["cmd"]["program name not specified"];
+        return null;
     };
     
     init.program = init.args[0];
@@ -152,28 +191,26 @@ PodProcess?#start proc with [[$PodVal]:args] in [PodStack:stack] {
     given proc_result.maybe_process as Process:proc {
         return PodProcess ["process", proc];
     } given proc_result.maybe_error as ProcError:error {
-        temp error msg: [error.msg];
+        [error].raise[stack];
         return null;
     } else {
-        abort;
+        abort ["Invalid ProcessResult without Process or ProcError"];
     };
 }
 
-#wait for_ [PodProcess:pod_proc] completion {
+Bool#wait for_ [PodProcess:pod_proc] completion in [PodStack:stack] {
     Process:proc = pod_proc.proc;
     if proc.completed {
-        return;
+        return false;
     };
-    given await_proc_completion[proc] as ProcError:error {
-        temp error msg: [error.msg];
-    };
+    return [await_proc_completion[proc]].maybe_raise[stack];
 }
 
-Str?#get proc out [PodProcess:pod_proc] {
+Str?#get proc out [PodProcess:pod_proc] in [PodStack:stack] {
     Process:proc = pod_proc.proc;
     given proc.out_data as Str:out_data {
-        given update_proc_output[proc] as ProcError:error {
-            temp error msg: [error.msg];
+        if [update_proc_output[proc]].maybe_raise[stack] {
+            return null;
         };
         return [out_data].clone;
     } else {
@@ -181,38 +218,33 @@ Str?#get proc out [PodProcess:pod_proc] {
     };
 }
 
-#send input [Str:data] to proc [PodProcess:pod_proc] {
+#send input [Str:data] to proc [PodProcess:pod_proc] in [PodStack:stack] {
     Process:proc = pod_proc.proc;
     given proc.in_data as Str:in_data {
         [in_data].extend[data];
-        given await_proc_input_sent[proc] as ProcError:error {
-            temp error msg: [error.msg];
-        };
+        [await_proc_input_sent[proc]].maybe_raise[stack];
     } else {
         Str:msg = "Cannot send input data to process without piped input";
-        temp error msg: [msg];
+        [stack].error["cmd"][msg];
     };
 }
 
-#poll proc [PodProcess:pod_proc] {
+Bool#poll proc [PodProcess:pod_proc] in [PodStack:stack] {
     Process:proc = pod_proc.proc;
     if proc.completed {
-        return;
+        return false;
     };
-    given poll_proc_status[proc] as ProcError:error {
-        temp error msg: [error.msg];
-    };
+    return [poll_proc_status[proc]].maybe_raise[stack];
 }
 
-#send signal [Str:signame] to [PodProcess:pod_proc] {
+#send signal [Str:signame] to [PodProcess:pod_proc] in [PodStack:stack] {
     Process:proc = pod_proc.proc;
     if proc.completed {
         if [signame] equals ["SIGTERM"] {
             return;
         };
-        temp error msg: ["Cannot send signal to completed process"];
+        [stack].error["cmd"]["Cannot send signal to completed process"];
+        return;
     };
-    given send_proc_signal[proc][signame] as ProcError:error {
-        temp error msg: [error.msg];
-    };
+    [send_proc_signal[proc][signame]].maybe_raise[stack];
 }

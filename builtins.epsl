@@ -33,13 +33,14 @@ CaseBuiltinData {
     $PodVal?:default_body
 }
 
-PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
+PodStr?#base [W:base] convert builtin [[$PodVal]:args] in [PodStack:stack] prefix: [Str:prefix] {
     if base > 16 {
         abort ["Expected base 16 or less, not {}" % base];
     };
 
-    require between [1] and [1] in [args];
-    require [args[0]] matches [IntPattern []];
+    require in [stack] between [1] and [1] in [args];
+    require in [stack] [args[0]] matches [IntPattern []];
+    if stack.active_error {return null;};
 
     Z64:number = [args[0]] as int;
     Bool:is_negative = number < 0;
@@ -65,7 +66,7 @@ PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
     return PodStr [result];
 }
 
-#set vars [[Str]:var_names] in [$LexicalPodFrame:frame] to [[$PodVal]:vals] {
+#set vars [[Str]:var_names] of [$LexicalPodFrame:frame] in [PodStack:stack] to [[$PodVal]:vals] {
     Str?:maybe_spread_name = null;
     [Str]:pre_spread_names = [Str] [];
     [Str]:post_spread_names = [Str] [];
@@ -73,10 +74,12 @@ PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
 
     for Str:name in var_names {
         if [name].len == 0 {
-            temp error msg: ["Cannot assign to empty symbol"];
+            [stack].error["arg"]["Cannot assign to empty symbol"];
+            return;
         } elif [name].at[-1] == ':' {
             if maybe_spread_name {
-                temp error msg: ["Cannot have multiple spread assignees"];
+                [stack].error["arg"]["Cannot have multiple spread assignees"];
+                return;
             };
             maybe_spread_name = [name].slice[0][[name].len-1];
             continue;
@@ -93,7 +96,8 @@ PodStr#base [W:base] convert builtin [[$PodVal]:args] prefix: [Str:prefix] {
     
     Z:optional_val_count = [vals].len#Z - (required_val_count#Z);
     if optional_val_count < 0 {
-        temp error msg: ["Not enough values for all assignees"];
+        [stack].error["arg"]["Not enough values for all assignees"];
+        return;
     };
 
     L:val_idx = 0;
@@ -146,11 +150,11 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     [$PodVal]:args = frame.arg_vals;
     $LexicalPodFrame:lexical_frame = top lexical frame in [stack];
     
-    given run basic builtin [frame] as $PodVal?:result {
+    given run basic builtin [frame] in [stack] as $PodVal?:result {
         return result;
     };
 
-    given run datatype builtin [frame] as $PodVal?:result {
+    given run datatype builtin [frame] in [stack] as $PodVal?:result {
         return result;
     };
 
@@ -168,9 +172,11 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             last = recieved;
         };
         if args {
-            $PodFrame:sub_frame = make frame in [stack]
-                of [[args].pop[0]] args: [[$PodVal] []];
-            [stack.frames].append[sub_frame];
+            given make frame in [stack]
+                of [[args].pop[0]] args: [[$PodVal] []]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
             return null;
         } else {
             return last;
@@ -186,9 +192,11 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             last = recieved;
         };
         if args {
-            $PodFrame:sub_frame = make frame in [stack]
-                of [[args].pop[0]] args: [[$PodVal] []];
-            [stack.frames].append[sub_frame];
+            given make frame in [stack]
+                of [[args].pop[0]] args: [[$PodVal] []]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
             return null;
         } else {
             return last;
@@ -220,8 +228,9 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     // an iterable and (optionally) a mapping function
 
     ("min") {
-        require between [1] and [null] in [args];
-        require [args] all match [NumberPattern []];
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:min = [args[0]] as int;
             for $PodVal:arg in args from 1 {
@@ -244,8 +253,9 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("max") {
-        require between [1] and [null] in [args];
-        require [args] all match [NumberPattern []];
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:max = [args[0]] as int;
             for $PodVal:arg in args from 1 {
@@ -268,8 +278,9 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("abs") {
-        require between [1] and [1] in [args];
-        require [args[0]] matches [NumberPattern []];
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]] matches [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args[0]].matches[IntPattern []] {
             Z64:val = [args[0]] as int;
             return PodInt [|[val]|];
@@ -289,10 +300,13 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("forever") {
-        require between [1] and [1] in [args];
-        $PodFrame:sub_frame = make frame in [stack]
-            of [args[0]] args: [[$PodVal] []];
-        [stack.frames].append[sub_frame];
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        given make frame in [stack]
+            of [args[0]] args: [[$PodVal] []]
+        as $PodFrame:sub_frame {
+            [stack.frames].append[sub_frame];
+        };
         return null;
     }
 
@@ -301,33 +315,42 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             given frame.recieved as $PodVal:recieved {
                 $PodVal:body_fn = [data.body_fns].pop[0];
                 if [recieved].is_truthy {
-                    $PodFrame:sub_frame = make frame in [stack]
-                        of [body_fn] args: [[$PodVal] [recieved]];
-                    replace top of [stack] with [sub_frame];
+                    given make frame in [stack]
+                        of [body_fn] args: [[$PodVal] [recieved]]
+                    as $PodFrame:sub_frame {
+                        replace top of [stack] with [sub_frame];
+                    };
                     return null;
                 };
             };
             if data.cond_fns {
-                $PodFrame:sub_frame = make frame in [stack]
-                    of [[data.cond_fns].pop[0]] args: [[$PodVal] []];
-                [stack.frames].append[sub_frame];
+                given make frame in [stack]
+                    of [[data.cond_fns].pop[0]] args: [[$PodVal] []]
+                as $PodFrame:sub_frame {
+                    [stack.frames].append[sub_frame];
+                };
                 return null;
             };
             given data.else_ as $PodVal:else_ {
-                $PodFrame:sub_frame = make frame in [stack]
-                    of [else_] args: [[$PodVal] []];
-                replace top of [stack] with [sub_frame];
+                given make frame in [stack]
+                    of [else_] args: [[$PodVal] []]
+                as $PodFrame:sub_frame {
+                    replace top of [stack] with [sub_frame];
+                };
                 return null;
             } else {
                 return pod nil;
             };
         };
 
-        require between [2] and [null] in [args];
+        require in [stack] between [2] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
         if [args[0]].is_truthy {
-            $PodFrame:sub_frame = make frame in [stack]
-                of [args[1]] args: [[$PodVal] [args[0]]];
-            replace top of [stack] with [sub_frame];
+            given make frame in [stack]
+                of [args[1]] args: [[$PodVal] [args[0]]]
+            as $PodFrame:sub_frame {
+                replace top of [stack] with [sub_frame];
+            };
             return null;
         };
         if [args].len == 2 {
@@ -340,19 +363,22 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         ];
         while i < [args].len {
             if new_data.else_ {
-                temp error msg: ["Expected nothing in if after 'else'"];
+                [stack].error["arg"]["Expected nothing in if after 'else'"];
+                return null#PodVal?;
             };
             $PodVal:keyword_val = args[i];
-            require [keyword_val] matches [EitherPattern [[$Pattern] [
+            require in [stack] [keyword_val] matches [EitherPattern [[$Pattern] [
                 ExactSymbolPattern ["elif"],
                 ExactSymbolPattern ["else"]
             ]]];
+            if stack.active_error {return null#$PodVal?;};
 
             switch [keyword_val].get_string
             ("elif") {
                 if i + 2 >= [args].len {
                     Str:msg = "Expected condition and body after 'elif'";
-                    temp error msg: [msg];
+                    [stack].error["arg"][msg];
+                    return null#PodVal?;
                 };
                 [new_data.cond_fns].append[args[i + 1]];
                 [new_data.body_fns].append[args[i + 2]];
@@ -360,7 +386,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             }
             ("else") {
                 if i + 1 >= [args].len {
-                    temp error msg: ["Expected body after 'else'"];
+                    [stack].error["arg"]["Expected body after 'else'"];
+                    return null#PodVal?;
                 };
                 new_data.else_ = args[i + 1];
                 i += 2;
@@ -376,10 +403,11 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         given frame.data as CaseBuiltinData:data {
             if !data.case_bodies {
                 given data.default_body as $PodVal:default_body {
-                    $PodFrame:sub_frame = make frame in [stack]
-                        of [default_body]
-                        args: [[$PodVal] [data.val]];
-                    replace top of [stack] with [sub_frame];
+                    given make frame in [stack] of [default_body]
+                        args: [[$PodVal] [data.val]]
+                    as $PodFrame:sub_frame {
+                        replace top of [stack] with [sub_frame];
+                    };
                     return null;
                 } else {
                     return pod nil;
@@ -401,14 +429,16 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             };
             $PodVal:case_body = [data.case_bodies].pop[0];
             if [cond_val].is_truthy {
-                $PodFrame:sub_frame = make frame in [stack]
-                    of [case_body]
-                    args: [[$PodVal] [data.val, cond_val]];
-                replace top of [stack] with [sub_frame];
+                given make frame in [stack] of [case_body]
+                    args: [[$PodVal] [data.val, cond_val]]
+                as $PodFrame:sub_frame {
+                    replace top of [stack] with [sub_frame];
+                };
             };
             return null;
         };
-        require between [1] and [null] in [args];
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
         [$PodVal]:case_conds = [$PodVal] [];
         [$PodVal]:case_bodies = [$PodVal] [];
         $PodVal?:default_body = null;
@@ -434,27 +464,33 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
                     return pod nil;
                 };
                 if [args].len >= 2 {
-                    $PodFrame:sub_frame = make frame in [stack]
-                        of [args[1]] args: [[$PodVal] [cond_val]];
-                    [stack.frames].append[sub_frame];
                     data.cond_ran = false;
+                    given make frame in [stack]
+                        of [args[1]] args: [[$PodVal] [cond_val]]
+                    as $PodFrame:sub_frame {
+                        [stack.frames].append[sub_frame];
+                    };
                     return null;
                 };
             };
 
-            $PodFrame:sub_frame = make frame in [stack]
-                of [args[0]] args: [[$PodVal] []];
-            [stack.frames].append[sub_frame];
             data.cond_ran = true;
+            given make frame in [stack]
+                of [args[0]] args: [[$PodVal] []]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
             return null;
         };
-        require between [1] and [2] in [args];
+        require in [stack] between [1] and [2] in [args];
+        if stack.active_error {return null#$PodVal?;};
         frame.data = WhileBuiltinData [false];
         return null;
     }
     
     ("choose") {
-        require between [3] and [3] in [args];
+        require in [stack] between [3] and [3] in [args];
+        if stack.active_error {return null#$PodVal?;};
         if [args[0]].is_truthy {
             return args[1];
         } else {
@@ -463,11 +499,13 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
     
     ("return") {
-        require between [0] and [2] in [args];
+        require in [stack] between [0] and [2] in [args];
+        if stack.active_error {return null#$PodVal?;};
         $PodVal:ret_val = [args[0]?] || [pod nil];
         Str?:maybe_label = null;
         given args[1]? as $PodVal:label_arg {
-            require [label_arg] matches [TxtPattern []];
+            require in [stack] [label_arg] matches [TxtPattern []];
+            if stack.active_error {return null#$PodVal?;};
             maybe_label = [label_arg].get_string;
         };
         while true {
@@ -481,11 +519,13 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
                 };
             };
             given lexical_frame as RootPodFrame:root_frame {
-                temp error msg: ["Cannot return from root frame"];
+                [stack].error["stack"]["Cannot return from root frame"];
+                return null#PodVal?;
             } given lexical_frame.parent as $LexicalPodFrame:new_frame {
                 lexical_frame = new_frame;
             } else {
-                temp error msg: ["No such frame to return from"];
+                [stack].error["stack"]["No such frame to return from"];
+                return null#PodVal?;
             };
         };
         while [stack.frames].at[-1] != lexical_frame {
@@ -496,17 +536,32 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("tailc") {
-        require between [1] and [null] in [args];
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
         // pop this builtin call from the stack;
         [stack.frames].pop_end;
-        $PodFrame:sub_frame = make frame in [stack] using [args];
-        // replace the underlying function that is now at the top
-        replace top of [stack] with [sub_frame];
+        given make frame in [stack] using [args]
+        as $PodFrame:sub_frame {
+            // replace the underlying function that is now at the top
+            replace top of [stack] with [sub_frame];
+        };
         return null;
     }
 
+    ("throw") {
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        given args[0] as PodError:error {
+            [stack].error[error];
+        } else {
+            [stack].error["arg"]["Cannot throw non error"];
+        };
+        return null#$PodVal?;
+    }
+
     ("declare") {
-        require [args] all match [SymbolPattern []];
+        require in [stack] [args] all match [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
         for $PodVal:arg in args {
             Str:name = [args[0]#PodSymbol?].unwrap.str;
             set local var [name] in [lexical_frame] to [pod nil];
@@ -515,8 +570,9 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("assign") {
-        require between [2] and [2] in [args];
-        require [args[0]] matches [SymbolPattern []];
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args[0]] matches [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
         Str:name = [args[0]#PodSymbol?].unwrap.str;
         $PodVal:val = args[1]; 
         set var [name] in [lexical_frame] to [val];
@@ -524,7 +580,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("set") {
-        require between [3] and [null] in [args];
+        require in [stack] between [3] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
 
         if [args].len == 3 && ([args[0]].matches [SymbolPattern []])
             && ([args[1]].matches [ExactSymbolPattern ["="]]) {
@@ -544,7 +601,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             if found_eq {
                 [vals].append[arg];
             } else {
-                require [arg] matches [SymbolPattern []];
+                require in [stack] [arg] matches [SymbolPattern []];
+                if stack.active_error {return null#$PodVal?;};
                 Str:name = [arg#PodSymbol?].unwrap.str;
                 if [name] equals ["="] {
                     found_eq = true;
@@ -554,37 +612,45 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             };
         };
 
-        set vars [var_names] in [lexical_frame] to [vals];
+        set vars [var_names] of [lexical_frame] in [stack] to [vals];
 
         return pod nil;
     }
 
     ("args") {
-        require between [1] and [null] in [args];
-        require [[args].at[-1]] matches [FnPattern []];
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [[args].at[-1]] matches [FnPattern []];
+        if stack.active_error {return null#$PodVal?;};
         return PodBuiltinFn ["#args", args];
     }
 
     ("#args") {
-        $PodFrame:sub_frame = make frame in [stack]
+        $PodFrame?:maybe_sub_frame = make frame in [stack]
             of [[builtin.data].at[-1]] args: [args];
+        if !maybe_sub_frame {
+            return null#$PodVal?;
+        };
+        $PodFrame:sub_frame = [maybe_sub_frame].unwrap;
         replace top of [stack] with [sub_frame];
         given sub_frame as $LexicalPodFrame:lexical_frame {
             [Str]:var_names = [Str] [];
             for $PodVal:name_val in builtin.data to [builtin.data].len-1 {
-                require [name_val] matches [SymbolPattern []];
+                require in [stack] [name_val] matches [SymbolPattern []];
+                if stack.active_error {return null#$PodVal?;};
                 [var_names].append[[name_val#PodSymbol?].unwrap.str];
             };
-            set vars [var_names] in [lexical_frame] to [args];
+            set vars [var_names] of [lexical_frame] in [stack] to [args];
         } else {
             Str:msg = "Cannot set argument variables in non lexical frame";
-            temp error msg: [msg];
+            [stack].error["stack"][msg];
+            return null#PodVal?;
         };
         return null;
     }
 
     ("car") {
-        require between [1] and [1] in [args];
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
         $PodVal:val = args[0];
         given args[0] as PodPair:pair {
             return pair.car;
@@ -596,7 +662,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("cdr") {
-        require between [1] and [1] in [args];
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
         $PodVal:val = args[0];
         given val as PodPair:pair {
             return pair.cdr;
@@ -608,7 +675,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("both") {
-        require between [1] and [1] in [args];
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
         given args[0] as PodPair:pair {
             return PodArray [[$PodVal] [pair.car, pair.cdr]];
         } else {
@@ -617,9 +685,10 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("defun") {
-        require between [2] and [2] in [args];
-        require [args[0]] matches [SymbolPattern []];
-        require [args[1]] matches [FnPattern []];
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args[0]] matches [SymbolPattern []];
+        require in [stack] [args[1]] matches [FnPattern []];
+        if stack.active_error {return null#$PodVal?;};
         register fn [[args[1]#$PodFn?].unwrap]
             under [[args[0]].get_string]
             in [stack];
@@ -627,8 +696,9 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("getfun") {
-        require between [1] and [1] in [args];
-        require [args[0]] matches [TxtPattern []];
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
         Str:fn_name = [args[0]].get_string;
         given lookup registered fn [fn_name] in [stack] as $PodFn:fn {
             return fn;
@@ -638,50 +708,58 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("repr") {
-        require between [1] and [1] in [args];
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
         return PodStr [[args[0]].stringify];
     }
 
     ("bin") {
-        return base [2] convert builtin [args] prefix: ["0b"];
+        return base [2] convert builtin [args] in [stack] prefix: ["0b"];
     }
 
     ("oct") {
-        return base [8] convert builtin [args] prefix: ["0o"];
+        return base [8] convert builtin [args] in [stack] prefix: ["0o"];
     }
 
     ("hex") {
-        return base [16] convert builtin [args] prefix: ["0x"];
+        return base [16] convert builtin [args] in [stack] prefix: ["0x"];
     }
 
     ("par") { // partial application
-        require between [1] and [null] in [args];
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
         return PodBuiltinFn ["#par", args];
     }
 
     ("#par") {
         $PodVal:fn = builtin.data[0];
         [$PodVal]:full_args = [[builtin.data].slice_from[1]] + [args];
-        $PodFrame:sub_frame = make frame in [stack] of [fn] args: [full_args];
-        replace top of [stack] with [sub_frame];
+        given make frame in [stack] of [fn] args: [full_args]
+        as $PodFrame:sub_frame {
+            replace top of [stack] with [sub_frame];
+        };
         return null;
     }
 
     ("rpar") { // reverse partial application
-        require between [1] and [null] in [args];
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
         return PodBuiltinFn ["#rpar", args];
     }
 
     ("#rpar") {
         $PodVal:fn = builtin.data[0];
         [$PodVal]:full_args = [args] + [[builtin.data].slice_from[1]];
-        $PodFrame:sub_frame = make frame in [stack] of [fn] args: [full_args];
-        replace top of [stack] with [sub_frame];
+        given make frame in [stack] of [fn] args: [full_args]
+        as $PodFrame:sub_frame {
+            replace top of [stack] with [sub_frame];
+        };
         return null;
     }
 
     ("compose") {
-        require between [1] and [null] in [args];
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
         return PodBuiltinFn ["#compose", args];
     }
 
@@ -691,25 +769,33 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
             if !data.fns {
                 return val;
             };
-            $PodFrame:sub_frame = make frame in [stack]
-                of [[data.fns].pop_end] args: [[$PodVal] [val]];
-            [stack.frames].append[sub_frame];
+            given make frame in [stack]
+                of [[data.fns].pop_end] args: [[$PodVal] [val]]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
         } else {
             frame.data = ComposeBuiltinData [builtin.data];
-            $PodFrame:sub_frame = make frame in [stack]
-                of [[builtin.data].pop_end] args: [args];
-            [stack.frames].append[sub_frame];
+            given make frame in [stack]
+                of [[builtin.data].pop_end] args: [args]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
         };
         return null;
     }
 
     ("_") { // the identity function
-        require between [1] and [null] in [args];
-        return args[0];
+        if args {
+            return args[0];
+        } else {
+            return pod nil;
+        };
     }
 
     ("C") { // creates a constant function
-        require between [1] and [1] in [args];
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
         return PodBuiltinFn ["#C", args];
     }
 
@@ -718,8 +804,9 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("ord") {
-        require between [1] and [1] in [args];
-        require [args[0]] matches [TxtPattern []];
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
         Str:str = [args[0]].get_string;
         given str[0]? as Byte:first_byte {
             return PodInt [first_byte];
@@ -729,12 +816,14 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("chr") {
-        require [args] all match [IntPattern []];
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
         Str:result = [""].clone;
         for $PodVal:val in args {
             Z64:int = [val] as int;
             if (int < 0 || int > 255) {
-                temp error msg: ["Invalid byte value {}" % int];
+                [stack].error["arg"]["Invalid byte value {}" % int];
+                return null#PodVal?;
             };
             [result].append[int#Byte];
         };
@@ -800,6 +889,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "choose",
         "return",
         "tailc",
+        "throw",
 
         "declare",
         "assign",

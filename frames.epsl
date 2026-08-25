@@ -16,7 +16,8 @@ Redirection {
 PodStack {
     [$PodFrame]:frames,
     [PodRegisteredFn]:fns,
-    [Redirection]:redirections
+    [Redirection]:redirections,
+    PodError?:active_error
 }
 
 PodFrameVar {
@@ -24,10 +25,15 @@ PodFrameVar {
     $PodVal:val
 }
 
+ErrorLanding {
+    PodError?:caught_error
+}
+
 @super;
 PodFrame {
     [$PodVal]:arg_vals,
     $PodVal?:recieved,
+    ErrorLanding?:landing
 }
 
 @super;
@@ -62,6 +68,7 @@ RootPodFrame#make root frame {
     return RootPodFrame [
         [$PodVal] [],
         null,
+        ErrorLanding [null],
         true,
         "top",
         get builtin globals,
@@ -72,6 +79,7 @@ RootPodFrame#make root frame {
 ClearFnPodFrame#make clear frame [PodClearFn:fn] args: [[$PodVal]:args] {
     return ClearFnPodFrame [
         args,
+        null,
         null,
         false,
         null,
@@ -97,7 +105,8 @@ PodStack#make new stack {
     PodStack:stack = PodStack [
         [$PodFrame] [make root frame],
         [PodRegisteredFn] [],
-        [Redirection] []
+        [Redirection] [],
+        null
     ];
     register builtin fns [stack];
     return stack;
@@ -140,7 +149,7 @@ PodFrameVar?#get var [Str:name] in [$LexicalPodFrame:frame] {
     };
 }
 
-$PodVal#lookup [Str:name] in [$LexicalPodFrame:frame] {
+$PodVal?#lookup [Str:name] in [$LexicalPodFrame:frame] in [PodStack:stack] {
     if [name] equals ["@"] {
         return PodArray [frame.arg_vals];
     };
@@ -149,15 +158,16 @@ $PodVal#lookup [Str:name] in [$LexicalPodFrame:frame] {
             given frame.arg_vals[i]? as $PodVal:arg {
                 return arg;
             } else {
-                temp error msg: ["argument index {} out of range" % i];
+                [stack].error["name"]["argument index {} out of range" % i];
+                return null;
             };
         };
     };
     given get var [name] in [frame] as PodFrameVar:var {
         return var.val;
     } else {
-        temp error msg: ["cannot find variable {}" % name];
-        abort;
+        [stack].error["name"]["cannot find variable {}" % name];
+        return null;
     };
 }
 
@@ -182,6 +192,24 @@ $PodFn?#lookup registered fn [Str:name] in [PodStack:stack] {
     for PodRegisteredFn:fn in stack.fns {
         if [fn.name] equals [name] {
             return fn.fn;
+        };
+    };
+    return null;
+}
+
+#[PodStack:stack].error[PodError:err] {
+    stack.active_error = err;
+}
+
+#[PodStack:stack].error[Str:type][Str:msg] {
+    [stack].error[PodError [type, msg, null, null]];
+}
+
+PodError?#[$PodFrame:frame].consume_error {
+    given frame.landing as ErrorLanding:landing {
+        given landing.caught_error as PodError:error {
+            landing.caught_error = null;
+            return error;
         };
     };
     return null;

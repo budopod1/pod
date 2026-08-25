@@ -1,3 +1,4 @@
+%import frames;
 %import eval;
 %import vals;
 
@@ -113,29 +114,31 @@ Bool#[[$PodVal]:vals].all_match[$Pattern:pattern] {
     return true;
 }
 
-#require [$PodVal:val] matches [$Pattern:pattern] {
+#require in [PodStack:stack] [$PodVal:val] matches [$Pattern:pattern] {
+    if stack.active_error {return;};
     if ![val].matches[pattern] {
         Str:msg = "expected {}, got {}" % [pattern].message % [val].stringify;
-        temp error msg: [msg];
+        [stack].error["arg"][msg];
     };
 }
 
-#require [[$PodVal]:vals] all match [$Pattern:pattern] {
+#require in [PodStack:stack] [[$PodVal]:vals] all match [$Pattern:pattern] {
     for $PodVal:val in vals {
-        require [val] matches [pattern];
+        require in [stack] [val] matches [pattern];
     };
 }
 
-#require between [L:min] and [L?:maybe_max] in [[$PodVal]:vals] {
+#require in [PodStack:stack] between [L:min] and [L?:maybe_max] in [[$PodVal]:vals] {
+    if stack.active_error {return;};
     L:count = [vals].len;
     if count < min {
         Str:msg = "required at least {} values, got {}" % min % count;
-        temp error msg: [msg];
+        [stack].error["arg"][msg];
     };
     given maybe_max as L:max {
         if count > max {
             Str:msg = "required at most {} values, got {}" % max % count;
-            temp error msg: [msg];
+            [stack].error["arg"][msg];
         };
     };
 }

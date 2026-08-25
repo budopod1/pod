@@ -4,12 +4,13 @@
 %import eval;
 %import vals;
 
-$PodVal??#run basic builtin [BuiltinPodFrame:frame] {
+$PodVal??#run basic builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
     switch builtin.name
     ("+") {
-        require [args] all match [NumberPattern []];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:x = 0;
             for $PodVal:arg in args {
@@ -26,8 +27,9 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
     }
 
     ("-") {
-        require between [1] and [null] in [args];
-        require [args] all match [NumberPattern []];
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:x = [args[0]] as int;
             for $PodVal:arg in args from 1 {
@@ -44,7 +46,8 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
     }
 
     ("*") {
-        require [args] all match [NumberPattern []];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:x = 1;
             for $PodVal:arg in args {
@@ -69,8 +72,9 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
             };
             return PodStr [[result].stringify];
         };
-        require between [1] and [null] in [args];
-        require [args] all match [NumberPattern []];
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         R:x = [args[0]] as float;
         for $PodVal:arg in args from 1 {
             x /= [arg] as float;
@@ -79,8 +83,9 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
     }
 
     ("~/") {
-        require between [1] and [null] in [args];
-        require [args] all match [IntPattern []];
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
         Z64:x = [args[0]] as int;
         for $PodVal:arg in args from 1 {
             x = x ~/ [arg] as int;
@@ -89,8 +94,9 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
     }
 
     ("%") {
-        require between [1] and [null] in [args];
-        require [args] all match [NumberPattern []];
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:x = [args[0]] as int;
             for $PodVal:arg in args from 1 {
@@ -107,8 +113,9 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
     }
 
     ("^") {
-        require between [1] and [null] in [args];
-        require [args] all match [NumberPattern []];
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         Bool:int_result = [args].all_match[IntPattern []];
         if int_result {
             for $PodVal:exponent in args from 1 {
@@ -145,7 +152,8 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
         if [args].len <= 1 {
             return pod bool [true];
         };
-        require [args] all match [NumberPattern []];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:last = [args[0]] as int;
             for $PodVal:arg in args from 1 {
@@ -173,7 +181,8 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
         if [args].len <= 1 {
             return pod bool [true];
         };
-        require [args] all match [NumberPattern []];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:last = [args[0]] as int;
             for $PodVal:arg in args from 1 {
@@ -201,7 +210,8 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
         if [args].len <= 1 {
             return pod bool [true];
         };
-        require [args] all match [NumberPattern []];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:last = [args[0]] as int;
             for $PodVal:arg in args from 1 {
@@ -229,7 +239,8 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] {
         if [args].len <= 1 {
             return pod bool [true];
         };
-        require [args] all match [NumberPattern []];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:last = [args[0]] as int;
             for $PodVal:arg in args from 1 {
