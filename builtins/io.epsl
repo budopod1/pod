@@ -60,7 +60,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     
     ("getenv") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         given get env var [[args[0]].get_string] as Str:val {
             return PodStr [val];
@@ -71,7 +71,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("setenv") {
         require in [stack] between [2] and [2] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Bool:status = set env var [[args[0]].get_string]
             to [[args[1]].get_string];
@@ -80,7 +80,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("unsetenv") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Bool:status = unset env var [[args[0]].get_string];
         return pod bool [status];
@@ -128,7 +128,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("ep") { // expand path
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Str:str = [args[0]].get_string;
         return PodStr [[pod expand path [str]].stringify];
@@ -136,7 +136,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("fileext") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Path:path = Path_from [[args[0]].get_string];
         return PodStr [[path].extension];
@@ -144,7 +144,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("filestem") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Path:path = Path_from [[args[0]].get_string];
         return PodStr [[path].stem];
@@ -178,7 +178,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("absp") { // absolute?
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Path:path = [Path_from [[args[0]].get_string]].expand_user;
         return pod bool [[path].is_absolute];
@@ -186,7 +186,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("existsp") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Path:path = [Path_from [[args[0]].get_string]].expand_user;
         return pod bool [[path].exists];
@@ -194,7 +194,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("filep") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Path:path = [Path_from [[args[0]].get_string]].expand_user;
         return pod bool [[path].is_file];
@@ -202,7 +202,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("dirp") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Path:path = [Path_from [[args[0]].get_string]].expand_user;
         return pod bool [[path].is_dir];
@@ -210,7 +210,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("symlinkp") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Path:path = [Path_from [[args[0]].get_string]].expand_user;
         return pod bool [[path].is_symlink];
@@ -218,7 +218,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("readdir") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Path:dir = [Path_from [[args[0]].get_string]].expand_user;
         given [dir].dir_items as [Str]:items {

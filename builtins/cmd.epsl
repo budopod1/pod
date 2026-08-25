@@ -47,7 +47,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     switch builtin.name
     ("wherecmd") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Str:name = [args[0]].get_string;
         given lookup [name] in PATH as Str:result {
@@ -99,7 +99,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("getpid") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [OpaquePattern ["process"]];
+        require in [stack] [args[0]?] matches [OpaquePattern ["process"]];
         if stack.active_error {return null#$PodVal?;};
         PodProcess:proc = [args[0]#PodProcess?].unwrap;
         return PodInt [proc.proc.pid];
@@ -107,7 +107,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("getstatus") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [OpaquePattern ["process"]];
+        require in [stack] [args[0]?] matches [OpaquePattern ["process"]];
         if stack.active_error {return null#$PodVal?;};
         PodProcess:proc = [args[0]#PodProcess?].unwrap;
         if poll proc [proc] in [stack] {
@@ -122,7 +122,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     
     ("getout") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [OpaquePattern ["process"]];
+        require in [stack] [args[0]?] matches [OpaquePattern ["process"]];
         if stack.active_error {return null#$PodVal?;};
         PodProcess:proc = [args[0]#PodProcess?].unwrap;
         given get proc out [proc] in [stack] as Str:out {
@@ -134,8 +134,8 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("sendin") {
         require in [stack] between [2] and [2] in [args];
-        require in [stack] [args[0]] matches [OpaquePattern ["process"]];
-        require in [stack] [args[1]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [OpaquePattern ["process"]];
+        require in [stack] [args[1]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         PodProcess:proc = [args[0]#PodProcess?].unwrap;
         Str:txt = [args[1]].get_string;
@@ -146,7 +146,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     ("wait") {
         Str?:cap_name = extract status cap name in [args];
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [OpaquePattern ["process"]];
+        require in [stack] [args[0]?] matches [OpaquePattern ["process"]];
         if stack.active_error {return null#$PodVal?;};
         PodProcess:proc = [args[0]#PodProcess?].unwrap;
         wait for_ [proc] completion in [stack];
@@ -156,7 +156,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("signalproc") {
         require in [stack] between [1] and [2] in [args];
-        require in [stack] [args[0]] matches [OpaquePattern ["process"]];
+        require in [stack] [args[0]?] matches [OpaquePattern ["process"]];
         if stack.active_error {return null#$PodVal?;};
         Str:signame = "SIGKILL";
         if [args].len >= 2 {
@@ -171,7 +171,7 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("env") {
         require in [stack] between [2] and [2] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         return PodEnvVar [
             "env-var",

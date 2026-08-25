@@ -122,6 +122,12 @@ Bool#[[$PodVal]:vals].all_match[$Pattern:pattern] {
     };
 }
 
+#require in [PodStack:stack] [$PodVal?:maybe_val] matches [$Pattern:pattern] {
+    given maybe_val as $PodVal:val {
+        require in [stack] [val] matches [pattern];
+    };
+}
+
 #require in [PodStack:stack] [[$PodVal]:vals] all match [$Pattern:pattern] {
     for $PodVal:val in vals {
         require in [stack] [val] matches [pattern];

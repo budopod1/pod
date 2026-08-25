@@ -20,7 +20,7 @@ PodStr?#base [W:base] convert builtin [[$PodVal]:args] in [PodStack:stack] prefi
     };
 
     require in [stack] between [1] and [1] in [args];
-    require in [stack] [args[0]] matches [IntPattern []];
+    require in [stack] [args[0]?] matches [IntPattern []];
     if stack.active_error {return null;};
 
     Z64:number = [args[0]] as int;
@@ -265,7 +265,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("abs") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [NumberPattern []];
+        require in [stack] [args[0]?] matches [NumberPattern []];
         if stack.active_error {return null#$PodVal?;};
         if [args[0]].matches[IntPattern []] {
             Z64:val = [args[0]] as int;
@@ -297,7 +297,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("assign") {
         require in [stack] between [2] and [2] in [args];
-        require in [stack] [args[0]] matches [SymbolPattern []];
+        require in [stack] [args[0]?] matches [SymbolPattern []];
         if stack.active_error {return null#$PodVal?;};
         Str:name = [args[0]#PodSymbol?].unwrap.str;
         $PodVal:val = args[1]; 
@@ -345,6 +345,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("args") {
         require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
         require in [stack] [[args].at[-1]] matches [FnPattern []];
         if stack.active_error {return null#$PodVal?;};
         return PodBuiltinFn ["#args", args];
@@ -412,8 +413,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("defun") {
         require in [stack] between [2] and [2] in [args];
-        require in [stack] [args[0]] matches [SymbolPattern []];
-        require in [stack] [args[1]] matches [FnPattern []];
+        require in [stack] [args[0]?] matches [SymbolPattern []];
+        require in [stack] [args[1]?] matches [FnPattern []];
         if stack.active_error {return null#$PodVal?;};
         register fn [[args[1]#$PodFn?].unwrap]
             under [[args[0]].get_string]
@@ -423,7 +424,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("getfun") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Str:fn_name = [args[0]].get_string;
         given lookup registered fn [fn_name] in [stack] as $PodFn:fn {
@@ -531,7 +532,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("ord") {
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Str:str = [args[0]].get_string;
         given str[0]? as Byte:first_byte {

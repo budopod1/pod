@@ -389,7 +389,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         };
 
         require in [stack] between [3] and [null] in [args];
-        require in [stack] [args[1]] matches [ExactSymbolPattern ["catch"]];
+        require in [stack] [args[1]?] matches [ExactSymbolPattern ["catch"]];
         if stack.active_error {return null#$PodVal?;};
         
         [Str]:caught_types = [Str] [];

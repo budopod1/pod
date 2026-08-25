@@ -81,7 +81,7 @@ $PodVal??#run datatype builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("error") {
         require in [stack] between [1] and [3] in [args];
-        require in [stack] [args[0]] matches [TxtPattern []];
+        require in [stack] [args[0]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Str:type = [args[0]].get_string;
         Str?:msg = null;
