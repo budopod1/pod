@@ -1,3 +1,4 @@
+%import platform;
 %import pattern;
 %import frames;
 %import eval;
@@ -403,6 +404,19 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         frame.landing = ErrorLanding [null];
 
         given make frame in [stack] of [args[0]] args: [[$PodVal] []]
+        as $PodFrame:sub_frame {
+            [stack.frames].append[sub_frame];
+        };
+        return null#$PodVal?;
+    }
+
+    ("fork") {
+        if !fork_proc {
+            return pod nil;
+        };
+
+        [frame.ctxs].append[ForkChildCtx []];
+        given make frame in [stack] using [args]
         as $PodFrame:sub_frame {
             [stack.frames].append[sub_frame];
         };

@@ -26,11 +26,11 @@ ErrorLanding {
 @super;
 FrameCtx {}
 
-#[$FrameCtx:ctx].exit {
+#[$FrameCtx:ctx].exit stack: [PodStack:stack] {
     given ctx as RedirectionCtx:redirect_ctx {
-        [redirect_ctx].exit;
+        [redirect_ctx].exit stack: [stack];
     } given ctx as ForkChildCtx:child_ctx {
-        [child_ctx].exit;
+        [child_ctx].exit stack: [stack];
     } else {
         abort ["Unrecognized frame ctx {}" % ctx];
     };
@@ -135,7 +135,7 @@ PodStack#make new stack {
 #pop frame in [PodStack:stack] {
     $PodFrame:frame = [stack.frames].pop_end;
     for $FrameCtx:ctx in frame.ctxs {
-        [ctx].exit;
+        [ctx].exit stack: [stack];
     };
     if !stack.frames {
         abort ["Illegally popped last frame"];

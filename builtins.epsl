@@ -611,6 +611,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "tailc",
         "throw",
         "try",
+        "fork",
 
         "not",
         "or",

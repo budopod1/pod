@@ -53,11 +53,14 @@ RedirectionCtx {
 @extends FrameCtx;
 ForkChildCtx {}
 
-#[RedirectionCtx:redirect_ctx].exit {
+#[RedirectionCtx:redirect_ctx].exit stack: [PodStack:stack] {
     restore_std_fd[redirect_ctx.target][redirect_ctx.old_fd];
 }
 
-#[ForkChildCtx:child_ctx].exit {
+#[ForkChildCtx:child_ctx].exit stack: [PodStack:stack] {
+    given stack.active_error as PodError:error {
+        display error [error];
+    };
     exit with status [0];
 }
 
@@ -211,7 +214,7 @@ $PodFrame?#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:a
             clear_frame.pc = pipe_instr.dest_target;
         };
     } given instr as PipeEndVMInstr:pipe_end_instr {
-        [[clear_frame.ctxs].pop_end].exit;
+        [[clear_frame.ctxs].pop_end].exit stack: [stack];
     } else {
         abort ["Unrecognized VM instruction {}" % instr];
     };
@@ -289,8 +292,10 @@ FrameRunResult#run frame [$PodFrame:frame] in [PodStack:stack] {
 #display error [PodError:error] {
     if ([error.type] equals ["cmd"]) && error.msg {
         println[error.msg];
-    } else {
+    } elif error.msg {
         println["{} error:" % error.type];
         println[error.msg];
+    } else {
+        println["{} error" % error.type];
     };
 }
