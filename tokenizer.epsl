@@ -87,14 +87,14 @@ Bool#[Byte:byte].is_symbol {
         && byte != '#' && byte != '\"'
         && byte != ';' && byte != '`'
         && byte != '(' && byte != ')'
+        && byte != '[' && byte != ']'
+        && byte != '{' && byte != '}'
         && byte != '\\' && byte != '|'
         && byte != 127;
 }
 
 Bool#[Byte:byte].is_symbol_start {
-    return [byte].is_symbol && byte != ':'
-        && byte != '[' && byte != ']'
-        && byte != '{' && byte != '}';
+    return [byte].is_symbol && byte != ':';
 }
 
 Bool#[Byte:byte].is_base_id {

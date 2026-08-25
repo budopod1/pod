@@ -199,6 +199,7 @@ $PodFn?#lookup registered fn [Str:name] in [PodStack:stack] {
 
 #[PodStack:stack].error[PodError:err] {
     stack.active_error = err;
+    [stack.frames].pop_end;
 }
 
 #[PodStack:stack].error[Str:type][Str:msg] {
