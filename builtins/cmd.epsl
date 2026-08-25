@@ -191,6 +191,31 @@ $PodVal??#run cmd builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         return PodCaptureStatus ["capture-status", var_name];
     }
+
+    ("cmdor") {
+        given frame.recieved as $PodVal:recieved {
+            return recieved;
+        };
+
+        given [frame].consume_error as PodError:error {
+            if ![error.type] equals ["cmd"] {
+                [stack].error[error];
+                return null#$PodVal?;
+            };
+        };
+
+        if !args {
+            return pod nil;
+        };
+
+        frame.landing = ErrorLanding [null];
+
+        given make frame in [stack] of [[args].pop[0]] args: [[$PodVal] []]
+        as $PodFrame:sub_frame {
+            [stack.frames].append[sub_frame];
+        };
+        return null#$PodVal?;
+    }
     
     {
         return null;

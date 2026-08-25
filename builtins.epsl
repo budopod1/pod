@@ -1004,6 +1004,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "signalproc",
         "env",
         "capstatus",
+        "cmdor",
     ];
     for Str:name in names {
         $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];
