@@ -8,15 +8,9 @@ PodRegisteredFn {
     $PodFn:fn
 }
 
-Redirection {
-    Z64:target,
-    Z64:old_fd
-}
-
 PodStack {
     [$PodFrame]:frames,
     [PodRegisteredFn]:fns,
-    [Redirection]:redirections,
     PodError?:active_error
 }
 
@@ -30,10 +24,24 @@ ErrorLanding {
 }
 
 @super;
+FrameCtx {}
+
+#[$FrameCtx:ctx].exit {
+    given ctx as RedirectionCtx:redirect_ctx {
+        [redirect_ctx].exit;
+    } given ctx as ForkChildCtx:child_ctx {
+        [child_ctx].exit;
+    } else {
+        abort ["Unrecognized frame ctx {}" % ctx];
+    };
+}
+
+@super;
 PodFrame {
     [$PodVal]:arg_vals,
     $PodVal?:recieved,
-    ErrorLanding?:landing
+    ErrorLanding?:landing,
+    [$FrameCtx]:ctxs,
 }
 
 @super;
@@ -66,28 +74,41 @@ ClearFnPodFrame {
 
 RootPodFrame#make root frame {
     return RootPodFrame [
-        [$PodVal] [],
-        null,
-        ErrorLanding [null],
-        true,
-        "top",
-        get builtin globals,
-        null,
+        [$PodVal] [],        // arg_vals
+        null,                // recieved
+        ErrorLanding [null], // landing
+        [$FrameCtx] [],      // ctxs
+        true,                // important
+        "top",               // label
+        get builtin globals, // vars
+        null,                // parent
     ];
 }
 
 ClearFnPodFrame#make clear frame [PodClearFn:fn] args: [[$PodVal]:args] {
     return ClearFnPodFrame [
-        args,
-        null,
-        null,
-        false,
-        null,
-        [PodFrameVar] [],
-        fn.parent_frame,
-        fn,
-        0,
-        [$PodVal] [],
+        args,             // arg_vals
+        null,             // recieved
+        null,             // landing
+        [$FrameCtx] [],   // ctxs
+        false,            // important
+        null,             // label
+        [PodFrameVar] [], // vars
+        fn.parent_frame,  // parent
+        fn,               // fn
+        0,                // pc
+        [$PodVal] [],     // val_stack
+    ];
+}
+
+BuiltinPodFrame#make builtin frame [PodBuiltinFn:fn] args: [[$PodVal]:args] {
+    return BuiltinPodFrame [
+        args,           // arg_vals
+        null,           // recieved
+        null,           // landing
+        [$FrameCtx] [], // ctxs
+        fn,             // builtin
+        null            // data
     ];
 }
 
@@ -105,23 +126,29 @@ PodStack#make new stack {
     PodStack:stack = PodStack [
         [$PodFrame] [make root frame],
         [PodRegisteredFn] [],
-        [Redirection] [],
         null
     ];
     register builtin fns [stack];
     return stack;
 }
 
+#pop frame in [PodStack:stack] {
+    $PodFrame:frame = [stack.frames].pop_end;
+    for $FrameCtx:ctx in frame.ctxs {
+        [ctx].exit;
+    };
+    if !stack.frames {
+        abort ["Illegally popped last frame"];
+    };
+}
+
 #replace top of [PodStack:stack] with [$PodFrame:frame] {
-    [stack.frames].pop_end;
+    pop frame in [stack];
     [stack.frames].append[frame];
 }
 
 #pop frame in [PodStack:stack] returning [$PodVal:val] {
-    [stack.frames].pop_end;
-    if !stack.frames {
-        abort ["Illegally popped last frame"];
-    };
+    pop frame in [stack];
     [stack.frames].at[-1].recieved = val;
 }
 
@@ -199,7 +226,7 @@ $PodFn?#lookup registered fn [Str:name] in [PodStack:stack] {
 
 #[PodStack:stack].error[PodError:err] {
     stack.active_error = err;
-    [stack.frames].pop_end;
+    pop frame in [stack];
 }
 
 #[PodStack:stack].error[Str:type][Str:msg] {

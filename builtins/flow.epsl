@@ -53,8 +53,8 @@ $PodVal??#loop jmp in [PodStack:stack] from [$LexicalPodFrame:lexical_frame] arg
             [stack].error["stack"]["No outer loop"];
             return null#$PodVal?;
         };
-        L:i = [[stack.frames].index_of[lexical_frame]].unwrap;
-        given stack.frames[i-1] as BuiltinPodFrame:builtin_frame {
+        L:i = [[stack.frames].index_of[lexical_frame]] || [0];
+        given stack.frames[i-1]? as BuiltinPodFrame:builtin_frame {
             given builtin_frame.data as $LoopBuiltinData:loop_data {
                 if ([lexical_frame.label] equals [maybe_label])
                     || !maybe_label {
@@ -71,7 +71,7 @@ $PodVal??#loop jmp in [PodStack:stack] from [$LexicalPodFrame:lexical_frame] arg
         };
     };
     while [stack.frames].at[-1] != lexical_frame {
-        [stack.frames].pop_end;
+        pop frame in [stack];
     };
     pop frame in [stack] returning [ret_val];
     return null#$PodVal?;
@@ -322,7 +322,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
             };
         };
         while [stack.frames].at[-1] != lexical_frame {
-            [stack.frames].pop_end;
+            pop frame in [stack];
         };
         pop frame in [stack] returning [ret_val];
         return null#$PodVal?;
@@ -342,7 +342,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         require in [stack] between [1] and [null] in [args];
         if stack.active_error {return null#$PodVal?;};
         // pop this builtin call from the stack;
-        [stack.frames].pop_end;
+        pop frame in [stack];
         given make frame in [stack] using [args]
         as $PodFrame:sub_frame {
             // replace the underlying function that is now at the top
