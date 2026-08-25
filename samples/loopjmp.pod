@@ -1,0 +1,21 @@
+set i = -1
+while {< $i 10} {! outer
+    set i = (+ 1 $i)
+    set j = -1
+    print (while {< $j 10} {! inner
+        set j = (+ 1 $j)
+        if (= $j 3) {
+            continue
+        }
+        if (and {= $i 2} {= $j 5}) {
+            continue outer
+        }
+        if (and {= $i 5} {= $j 7}) {
+            break inner $t
+        }
+        if (and {= $i 8} {= $j 9}) {
+            break outer
+        }
+        print $i $j
+    })
+}

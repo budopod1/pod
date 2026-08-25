@@ -1,0 +1,416 @@
+%import pattern;
+%import frames;
+%import eval;
+%import vals;
+
+@super;
+@extends BuiltinData;
+LoopBuiltinData {
+    Bool:break_requested
+}
+
+@extends LoopBuiltinData;
+ForeverBuiltinData {}
+
+@extends LoopBuiltinData;
+WhileBuiltinData {
+    Bool:cond_ran
+}
+
+@extends BuiltinData;
+IfBuiltinData {
+    [$PodVal]:cond_fns,
+    [$PodVal]:body_fns,
+    $PodVal?:else_,
+}
+
+@extends BuiltinData;
+CaseBuiltinData {
+    $PodVal:val,
+    [$PodVal]:case_conds,
+    [$PodVal]:case_bodies,
+    $PodVal?:default_body
+}
+
+@extends BuiltinData;
+TryBuiltinData {
+    $PodVal:catch,
+    [Str]:types
+}
+
+$PodVal??#loop jmp in [PodStack:stack] from [$LexicalPodFrame:lexical_frame] args: [[$PodVal]:args] break_: [Bool:break_] {
+    require in [stack] between [0] and [2] in [args];
+    if stack.active_error {return null#$PodVal?;};
+    $PodVal:ret_val = [args[1]?] || [pod nil];
+    Str?:maybe_label = null;
+    given args[0]? as $PodVal:label_arg {
+        require in [stack] [label_arg] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        maybe_label = [label_arg].get_string;
+    };
+    while true {
+        given lexical_frame as RootPodFrame:root_frame {
+            [stack].error["stack"]["No outer loop"];
+            return null#$PodVal?;
+        };
+        L:i = [[stack.frames].index_of[lexical_frame]].unwrap;
+        given stack.frames[i-1] as BuiltinPodFrame:builtin_frame {
+            given builtin_frame.data as $LoopBuiltinData:loop_data {
+                if ([lexical_frame.label] equals [maybe_label])
+                    || !maybe_label {
+                    loop_data.break_requested = break_;
+                    break;
+                };
+            };
+        };
+        given lexical_frame.parent as $LexicalPodFrame:new_frame {
+            lexical_frame = new_frame;
+        } else {
+            [stack].error["stack"]["No outer loop"];
+            return null#$PodVal?;
+        };
+    };
+    while [stack.frames].at[-1] != lexical_frame {
+        [stack.frames].pop_end;
+    };
+    pop frame in [stack] returning [ret_val];
+    return null#$PodVal?;
+}
+
+$PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: [$LexicalPodFrame:lexical_frame] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("forever") {
+        given frame.data as ForeverBuiltinData:data {
+            if data.break_requested {
+                return [frame.recieved].unwrap;
+            };
+            given make frame in [stack] of [args[0]] args: [[$PodVal] []]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+        } else {
+            require in [stack] between [1] and [1] in [args];
+            if stack.active_error {return null#$PodVal?;};
+            frame.data = ForeverBuiltinData [false];
+        };
+        return null#$PodVal?;
+    }
+
+    ("if") {
+        given frame.data as IfBuiltinData:data {
+            given frame.recieved as $PodVal:recieved {
+                $PodVal:body_fn = [data.body_fns].pop[0];
+                if [recieved].is_truthy {
+                    given make frame in [stack]
+                        of [body_fn] args: [[$PodVal] [recieved]]
+                    as $PodFrame:sub_frame {
+                        replace top of [stack] with [sub_frame];
+                    };
+                    return null#$PodVal?;
+                };
+            };
+            if data.cond_fns {
+                given make frame in [stack]
+                    of [[data.cond_fns].pop[0]] args: [[$PodVal] []]
+                as $PodFrame:sub_frame {
+                    [stack.frames].append[sub_frame];
+                };
+                return null#$PodVal?;
+            };
+            given data.else_ as $PodVal:else_ {
+                given make frame in [stack]
+                    of [else_] args: [[$PodVal] []]
+                as $PodFrame:sub_frame {
+                    replace top of [stack] with [sub_frame];
+                };
+                return null#$PodVal?;
+            } else {
+                return pod nil;
+            };
+        };
+
+        require in [stack] between [2] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if [args[0]].is_truthy {
+            given make frame in [stack]
+                of [args[1]] args: [[$PodVal] [args[0]]]
+            as $PodFrame:sub_frame {
+                replace top of [stack] with [sub_frame];
+            };
+            return null#$PodVal?;
+        };
+        if [args].len == 2 {
+            return pod nil;
+        };
+
+        W:i = 2;
+        IfBuiltinData:new_data = IfBuiltinData [
+            [$PodVal] [], [$PodVal] [], null
+        ];
+        while i < [args].len {
+            if new_data.else_ {
+                [stack].error["arg"]["Expected nothing in if after 'else'"];
+                return null#$PodVal?;
+            };
+            $PodVal:keyword_val = args[i];
+            require in [stack] [keyword_val] matches [EitherPattern [[$Pattern] [
+                ExactSymbolPattern ["elif"],
+                ExactSymbolPattern ["else"]
+            ]]];
+            if stack.active_error {return null#$PodVal?;};
+
+            switch [keyword_val].get_string
+            ("elif") {
+                if i + 2 >= [args].len {
+                    Str:msg = "Expected condition and body after 'elif'";
+                    [stack].error["arg"][msg];
+                    return null#$PodVal?;
+                };
+                [new_data.cond_fns].append[args[i + 1]];
+                [new_data.body_fns].append[args[i + 2]];
+                i += 3;
+            }
+            ("else") {
+                if i + 1 >= [args].len {
+                    [stack].error["arg"]["Expected body after 'else'"];
+                    return null#$PodVal?;
+                };
+                new_data.else_ = args[i + 1];
+                i += 2;
+            }
+            {abort;};
+        };
+
+        frame.data = new_data;
+        return null#$PodVal?;
+    }
+
+    ("case") {
+        given frame.data as CaseBuiltinData:data {
+            if !data.case_bodies {
+                given data.default_body as $PodVal:default_body {
+                    given make frame in [stack] of [default_body]
+                        args: [[$PodVal] [data.val]]
+                    as $PodFrame:sub_frame {
+                        replace top of [stack] with [sub_frame];
+                    };
+                    return null#$PodVal?;
+                } else {
+                    return pod nil;
+                };
+            };
+            $PodVal:cond_val = pod bool [false];
+            if [data.case_bodies].len > [data.case_conds].len {
+                cond_val = [frame.recieved].unwrap;
+            } else {
+                $PodVal:cond = [data.case_conds].pop[0];
+                given cond as $PodFn:fn {
+                    $PodFrame:sub_frame = make frame in [stack]
+                        of [fn] args: [[$PodVal] [data.val]];
+                    [stack.frames].append[sub_frame];
+                    return null#$PodVal?;
+                } else {
+                    cond_val = pod bool [[cond] equals [data.val]];
+                };
+            };
+            $PodVal:case_body = [data.case_bodies].pop[0];
+            if [cond_val].is_truthy {
+                given make frame in [stack] of [case_body]
+                    args: [[$PodVal] [data.val, cond_val]]
+                as $PodFrame:sub_frame {
+                    replace top of [stack] with [sub_frame];
+                };
+            };
+            return null#$PodVal?;
+        };
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        [$PodVal]:case_conds = [$PodVal] [];
+        [$PodVal]:case_bodies = [$PodVal] [];
+        $PodVal?:default_body = null;
+        for W:i enumerating args from 1 step 2 {
+            if i + 1 >= [args].len {
+                default_body = args[i];
+            } else {
+                [case_conds].append[args[i]];
+                [case_bodies].append[args[i + 1]];
+            };
+        };
+        frame.data = CaseBuiltinData [
+            args[0], case_conds, case_bodies, default_body
+        ];
+        return null#$PodVal?;
+    }
+
+    ("while") {
+        given frame.data as WhileBuiltinData:data {
+            if data.break_requested {
+                return [frame.recieved].unwrap;
+            };
+
+            if data.cond_ran {
+                $PodVal:cond_val = [frame.recieved].unwrap;
+                if ![cond_val].is_truthy {
+                    return pod nil;
+                };
+                if [args].len >= 2 {
+                    data.cond_ran = false;
+                    given make frame in [stack]
+                        of [args[1]] args: [[$PodVal] [cond_val]]
+                    as $PodFrame:sub_frame {
+                        [stack.frames].append[sub_frame];
+                    };
+                    return null#$PodVal?;
+                };
+            };
+
+            data.cond_ran = true;
+            given make frame in [stack]
+                of [args[0]] args: [[$PodVal] []]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+            return null#$PodVal?;
+        };
+        require in [stack] between [1] and [2] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        frame.data = WhileBuiltinData [false, false];
+        return null#$PodVal?;
+    }
+    
+    ("choose") {
+        require in [stack] between [3] and [3] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if [args[0]].is_truthy {
+            return args[1];
+        } else {
+            return args[2];
+        };
+    }
+    
+    ("return") {
+        require in [stack] between [0] and [2] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        $PodVal:ret_val = [args[0]?] || [pod nil];
+        Str?:maybe_label = null;
+        given args[1]? as $PodVal:label_arg {
+            require in [stack] [label_arg] matches [TxtPattern []];
+            if stack.active_error {return null#$PodVal?;};
+            maybe_label = [label_arg].get_string;
+        };
+        while true {
+            given lexical_frame as RootPodFrame:root_frame {
+                [stack].error["stack"]["Cannot return from root frame"];
+                return null#$PodVal?;
+            };
+            given maybe_label as Str:label {
+                if [lexical_frame.label] equals [label#Str?] {
+                    break;
+                };
+            } else {
+                if lexical_frame.important {
+                    break;
+                };
+            };
+            given lexical_frame.parent as $LexicalPodFrame:new_frame {
+                lexical_frame = new_frame;
+            } else {
+                [stack].error["stack"]["No such frame to return from"];
+                return null#$PodVal?;
+            };
+        };
+        while [stack.frames].at[-1] != lexical_frame {
+            [stack.frames].pop_end;
+        };
+        pop frame in [stack] returning [ret_val];
+        return null#$PodVal?;
+    }
+
+    ("break") {
+        return loop jmp in [stack] from [lexical_frame]
+            args: [args] break_: [true];
+    }
+
+    ("continue") {
+        return loop jmp in [stack] from [lexical_frame]
+            args: [args] break_: [false];
+    }
+
+    ("tailc") {
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        // pop this builtin call from the stack;
+        [stack.frames].pop_end;
+        given make frame in [stack] using [args]
+        as $PodFrame:sub_frame {
+            // replace the underlying function that is now at the top
+            replace top of [stack] with [sub_frame];
+        };
+        return null#$PodVal?;
+    }
+
+    ("throw") {
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        given args[0] as PodError:error {
+            [stack].error[error];
+        } else {
+            [stack].error["arg"]["Cannot throw non error"];
+        };
+        return null#$PodVal?;
+    }
+    
+    ("try") {
+        given frame.recieved as $PodVal:recieved {
+            return recieved;
+        };
+
+        given [frame].consume_error as PodError:error {
+            TryBuiltinData:data = [frame.data#TryBuiltinData?].unwrap;
+            Bool:found = false;
+            for Str:type_option in data.types {
+                if [type_option] equals [error.type] {
+                    found = true;
+                    break;
+                };
+            };
+            if !data.types || found {
+                given make frame in [stack] of [data.catch]
+                    args: [[$PodVal] [error]]
+                as $PodFrame:sub_frame {
+                    replace top of [stack] with [sub_frame];
+                };
+            } else {
+                [stack].error[error];
+            };
+            return null#$PodVal?;
+        };
+
+        require in [stack] between [3] and [null] in [args];
+        require in [stack] [args[1]] matches [ExactSymbolPattern ["catch"]];
+        if stack.active_error {return null#$PodVal?;};
+        
+        [Str]:caught_types = [Str] [];
+        for $PodVal:type_val in args from 2 to [args].len - 1 {
+            require in [stack] [type_val] matches [TxtPattern []];
+            if stack.active_error {return null#$PodVal?;};
+            [caught_types].append[[type_val].get_string];
+        };
+
+        frame.data = TryBuiltinData [[args].at[-1], caught_types];
+        frame.landing = ErrorLanding [null];
+
+        given make frame in [stack] of [args[0]] args: [[$PodVal] []]
+        as $PodFrame:sub_frame {
+            [stack.frames].append[sub_frame];
+        };
+        return null#$PodVal?;
+    }
+
+    {
+        return null;
+    };
+}
+
