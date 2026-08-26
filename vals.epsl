@@ -204,9 +204,13 @@ Str#[$PodVal:val].stringify {
     } given val as PodFloat:float {
         return [float.val].stringify;
     } given val as PodBool:bool {
-        return [bool.val].stringify;
+        if bool.val {
+            return "$t";
+        } else {
+            return "$f";
+        };
     } given val as PodNil:nil {
-        return "nil";
+        return "$nil";
     } given val as PodPair:pair {
         return "(cons {} {})" % [pair.car].stringify % [pair.cdr].stringify;
     } given val as PodArray:array {
@@ -271,21 +275,29 @@ Bool#[$PodVal:a] equals [$PodVal:b] {
     given a as PodSymbol:sym_a {
         given b as PodSymbol:sym_b {
             return [sym_a.str] equals [sym_b.str];
+        } given b as PodStr:str_b {
+            return [sym_a.str] equals [str_b.val];
         };
         return false;
     } given a as PodStr:str_a {
         given b as PodStr:str_b {
             return [str_a.val] equals [str_b.val];
+        } given b as PodSymbol:sym_b {
+            return [str_a.val] equals [sym_b.str];
         };
         return false;
     } given a as PodInt:int_a {
         given b as PodInt:int_b {
             return int_a.val == int_b.val;
+        } given b as PodFloat:float_b {
+            return int_a.val == float_b.val;
         };
         return false;
     } given a as PodFloat:float_a {
-        given b as PodInt:float_b {
+        given b as PodFloat:float_b {
             return float_a.val == float_b.val;
+        } given b as PodInt:int_b {
+            return float_a.val == int_b.val;
         };
         return false;
     } given a as PodBool:bool_a {

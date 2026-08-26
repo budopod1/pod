@@ -55,6 +55,9 @@ ProcOutputRedirect?#make output redirection from [Str:str] in [PodStack:stack] {
     if [str] equals ["."] {
         // pipe
         return ProcOutputRedirect [3, null];
+    } elif [str] equals [".."] {
+        // pipe, strip final newline
+        return ProcOutputRedirect [5, null];
     } elif [str] equals ["&1"] {
         // redirect to stdout
         return ProcOutputRedirect [1, null];
@@ -94,6 +97,7 @@ Bool#process cmd symbol arg [Str:str] on [ProcInitInfo:init] in [PodStack:stack]
     // 1 (redirect to stdout)
     // 2 (redirect to stderr)
     // . (capture as result)
+    // .. (capture as result, strip final newline)
     // $.* (get the variable's value, repeat this selection)
     // .* (redirect to file)
     if str[0]? == '>' || str[1]? == '>' {
@@ -104,6 +108,10 @@ Bool#process cmd symbol arg [Str:str] on [ProcInitInfo:init] in [PodStack:stack]
             return true;
         };
         ProcOutputRedirect:redirect = [maybe_redirect].unwrap;
+        if redirect.mode == 5 {
+            redirect.mode = 3;
+            init.out_strip_final_newline = true;
+        };
         switch str[0]
         ('>') {
             init.stdout_dest = redirect;
@@ -154,12 +162,13 @@ Bool#[ProcError?:maybe_err].maybe_raise[PodStack:stack] {
 
 PodProcess?#start proc with [[$PodVal]:args] in [PodStack:stack] {
     ProcInitInfo:init = ProcInitInfo [
-        ProcInputRedirect [0, null],
-        ProcOutputRedirect [0, null],
-        ProcOutputRedirect [0, null],
-        [ProcEnvVal] [],
-        "",
-        [Str] []
+        ProcInputRedirect [0, null],  // stdin_src
+        ProcOutputRedirect [0, null], // stdout_dest
+        ProcOutputRedirect [0, null], // stderr_dest
+        false,                        // out_strip_final_newline
+        [ProcEnvVal] [],              // env_vals
+        "",                           // program
+        [Str] []                      // args
     ];
 
     for $PodVal:arg in args {
@@ -211,6 +220,9 @@ Str?#get proc out [PodProcess:pod_proc] in [PodStack:stack] {
     given proc.out_data as Str:out_data {
         if [update_proc_output[proc]].maybe_raise[stack] {
             return null;
+        };
+        if proc.out_strip_final_newline && [out_data].ends_with["\n"] {
+            return [out_data].slice[0][[out_data].len - 1];
         };
         return [out_data].clone;
     } else {

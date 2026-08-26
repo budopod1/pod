@@ -1,4 +1,5 @@
 %import pattern;
+%import iotools;
 %import frames;
 %import paths;
 %import eval;
@@ -67,7 +68,7 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         if [args].all_match[TxtPattern []] {
             Path:result = Path_from ["."];
             for $PodVal:arg in args {
-                Path:segment = Path_from [[arg].get_string];
+                Path:segment = pod expand path [[arg].get_string];
                 result = [result] / [[segment].expand_user];
             };
             return PodStr [[result].stringify];

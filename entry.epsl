@@ -44,19 +44,28 @@ PodFnExpr?#parse txt [Str:txt] path: [Path:path] {
     return maybe_fn_expr;
 }
 
-PodFnExpr#parse file [Path:path] {
+PodFnExpr?#parse file [Path:path] {
     FileReadResult:read_result = read file [path];
     if report errors [read_result.errors] {
-        exit with status [1];
+        return null;
     };
     Str:txt = [read_result.txt].unwrap;
 
     given parse txt [txt] path: [path] as PodFnExpr:fn_expr {
         return fn_expr;
     } else {
-        exit with status [1];
-        abort;
+        return null;
     };
+}
+
+$PodVal?#check run frame [$PodFrame:frame] in [PodStack:stack] {
+    FrameRunResult:result = run frame [frame] in [stack];
+    given result.ret_val as $PodVal:ret_val {
+        return ret_val;
+    } given result.error as PodError:error {
+        display error [error];
+    };
+    return null;
 }
 
 #run program [PodFnExpr:fn_expr] from [Path:path] args: [[Str]:str_args] {
@@ -76,15 +85,15 @@ PodFnExpr#parse file [Path:path] {
             "FILE", PodStr [[full_path].stringify]
         ]];
     };
-    FrameRunResult:result = run frame [frame] in [stack];
-    given result.error as PodError:error {
-        display error [error];
-    };
+    check run frame [frame] in [stack];
 }
 
 #run file [Path:path] args: [[Str]:str_args] {
-    PodFnExpr:fn_expr = parse file [path];
-    run program [fn_expr] from [path] args: [str_args];
+    given parse file [path] as PodFnExpr:fn_expr {
+        run program [fn_expr] from [path] args: [str_args];
+    } else {
+        exit with status [1];
+    };
 }
 
 #run string [Str:txt] args: [[Str]:str_args] {
@@ -94,41 +103,86 @@ PodFnExpr#parse file [Path:path] {
     };
 }
 
-#run REPL {
-    Path:path = Path_from ["<REPL>"];
+#run podrc in [PodStack:stack] vars: [[PodFrameVar]:vars] {
+    Path?:maybe_pod_rc = null;
+    given home_Path as Path:home {
+        Path:pod_rc = [home] / [".podrc"];
+        if [pod_rc].exists {
+            maybe_pod_rc = pod_rc;
+        };
+    };
+    if !maybe_pod_rc {
+        return;
+    };
 
-    PodStack:stack = make new stack;
+    PodFnExpr?:maybe_fn_expr = parse file [[maybe_pod_rc].unwrap];
+    if !maybe_fn_expr {
+        return;
+    };
+
     PodClearFn:fn = PodClearFn [
-        PodFnExpr [[PodSExpr] [], null],
+        [maybe_fn_expr].unwrap,
         top lexical frame in [stack]
     ];
     ClearFnPodFrame:frame = make clear frame [fn]
         args: [[$PodVal] []];
     frame.important = true;
-    frame.label = "repl";
+    frame.label = "podrc";
+    frame.vars = vars;
+
+    check run frame [frame] in [stack];
+}
+
+#run REPL {
+    Path:path = Path_from ["<REPL>"];
+
+    PodStack:stack = make new stack;
+
+    PodFrameVar:PROMPT_var = PodFrameVar [
+        "PROMPT", PodStr ["> "]
+    ];
+    [PodFrameVar]:vars = [PodFrameVar] [PROMPT_var];
+
+    run podrc in [stack] vars: [vars];
 
     set_sigint_disregarded[true];
 
     while true {
-        Str:input = inputline["> "];
+        Str:prompt_str = "> ";
+        $PodVal:prompt_val = PROMPT_var.val;
+        given prompt_val as PodStr:str {
+            prompt_str = str.val;
+        } given prompt_val as $PodFn:fn {
+            $PodFrame:frame = make frame in [stack]
+                of [fn] args: [[$PodVal] []];
+            given check run frame [frame] in [stack] as $PodVal:result {
+                prompt_str = [result].get_string;
+            };
+        } else {
+            println["Invalid prompt type {}" % [prompt_val].stringify_type];
+        };
+
+        Str:input = inputline[prompt_str];
 
         PodFnExpr?:maybe_fn_expr = parse txt [input] path: [path];
         if !maybe_fn_expr {
             continue;
         };
 
-        fn.src = [maybe_fn_expr].unwrap;
-        frame.pc = 0;
-        frame.val_stack = [$PodVal] [];
-        frame.recieved = null;
+        PodClearFn:fn = PodClearFn [
+            [maybe_fn_expr].unwrap,
+            top lexical frame in [stack]
+        ];
+        ClearFnPodFrame:frame = make clear frame [fn]
+            args: [[$PodVal] []];
+        frame.important = true;
+        frame.label = "repl";
+        frame.vars = vars;
 
-        FrameRunResult:result = run frame [frame] in [stack];
-        given result.ret_val as $PodVal:ret_val {
+        given check run frame [frame] in [stack] as $PodVal:ret_val {
             if ret_val != pod nil {
                 println[[ret_val].get_string];
             };
-        } given result.error as PodError:error {
-            display error [error];
         };
     };
 }

@@ -29,6 +29,7 @@ TokenizationResult#group tokens [Tokens:src_tokens] {
                 [errors].append[TokenizationError [
                     "Unexpected closing delimiter", start_index
                 ]];
+                continue;
             };
             Tokens:group_ended = [group_stack].pop_end;
             W:group_start = group_ended.start_index;

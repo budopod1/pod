@@ -132,6 +132,14 @@ PodStack#make new stack {
     return stack;
 }
 
+RootPodFrame#[PodStack:stack].get_root_frame {
+    given stack.frames[0] as RootPodFrame:root_frame {
+        return root_frame;
+    } else {
+        abort ["Stack must have root frame"];
+    };
+}
+
 #pop frame in [PodStack:stack] {
     $PodFrame:frame = [stack.frames].pop_end;
     for $FrameCtx:ctx in frame.ctxs {

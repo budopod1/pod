@@ -43,6 +43,8 @@ typedef struct ARRAY_ProcEnvVal {
 #define OUTMODE_TOSTDERR 2
 #define OUTMODE_PIPE 3
 #define OUTMODE_TOFILE 4
+// not recognized in C code
+#define OUTMODE_PIPE_STRIP_NEWLINE 5
 
 typedef struct ProcOutputRedirect {
     uint64_t ref_counter;
@@ -65,6 +67,7 @@ typedef struct ProcInitInfo {
     ProcInputRedirect *stdin_src;
     ProcOutputRedirect *stdout_dest;
     ProcOutputRedirect *stderr_dest;
+    bool out_strip_final_newline;
     ARRAY_ProcEnvVal *env_vals;
     struct ARRAY_Byte *program;
     struct ARRAY_ARRAY_Byte *args;
@@ -79,6 +82,7 @@ typedef struct Process {
     NULLABLE_ARRAY_Byte *in_data;
     uint32_t pid;
     bool no_new_input;
+    bool out_strip_final_newline;
     bool completed;
     int32_t result_status;
 } Process, NULLABLE_Process;

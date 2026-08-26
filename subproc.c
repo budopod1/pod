@@ -283,6 +283,7 @@ ProcessResult *SPR_start_proc(ProcInitInfo *info) {
     }
     process->pid = pid;
     process->no_new_input = false;
+    process->out_strip_final_newline = info->out_strip_final_newline;
     process->completed = false;
     process->result_status = -1;
 

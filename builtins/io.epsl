@@ -1,3 +1,5 @@
+%import consolestyles;
+%import conversion;
 %import inputline;
 %import pattern;
 %import iotools;
@@ -11,6 +13,90 @@
 @extends BuiltinData;
 TimeBuiltinData {
     R:start_time
+}
+
+RGB {
+    W8:r,
+    W8:g,
+    W8:b
+}
+
+RGB?#parse rgb hex [Str:str] in [PodStack:stack] {
+    if [str].len != 6 {
+        Str:msg = "RGB hex string must be 6 chars, got '{}'" % str;
+        [stack].error["arg"][msg];
+        return null;
+    };
+    Z32:num = [str].parse_as_Z32_in_base[16];
+    if num < 0 {
+        Str:msg = "Invalid RGB hex string, got '{}'" % str;
+        [stack].error["arg"][msg];
+        return null;
+    };
+    return RGB [
+        ([num] >> [16])#W8,
+        ([num] >> [8])#W8,
+        num#W8
+    ];
+}
+
+TextStyle?#parse text style [$PodVal:val] in [PodStack:stack] {
+    Str:txt = [val].get_string;
+    switch txt
+    ("bold") {return TXT_BOLD;}
+    ("dark") {return TXT_DARK;}
+    ("underline") {return TXT_UNDERLINE;}
+    ("blink") {return TXT_BLINK;}
+    ("reverse") {return TXT_REVERSE;}
+    ("concealed") {return TXT_CONCEALED;}
+    ("strike") {return TXT_STRIKE;}
+    ("on_black") {return TXT_ON_BLACK;}
+    ("on_red") {return TXT_ON_RED;}
+    ("on_green") {return TXT_ON_GREEN;}
+    ("on_yellow") {return TXT_ON_YELLOW;}
+    ("on_blue") {return TXT_ON_BLUE;}
+    ("on_magenta") {return TXT_ON_MAGENTA;}
+    ("on_cyan") {return TXT_ON_CYAN;}
+    ("on_light_grey") {return TXT_ON_LIGHT_GREY;}
+    ("on_dark_grey") {return TXT_ON_DARK_GREY;}
+    ("on_light_red") {return TXT_ON_LIGHT_RED;}
+    ("on_light_green") {return TXT_ON_LIGHT_GREEN;}
+    ("on_light_yellow") {return TXT_ON_LIGHT_YELLOW;}
+    ("on_light_blue") {return TXT_ON_LIGHT_BLUE;}
+    ("on_light_magenta") {return TXT_ON_LIGHT_MAGENTA;}
+    ("on_light_cyan") {return TXT_ON_LIGHT_CYAN;}
+    ("on_white") {return TXT_ON_WHITE;}
+    ("black") {return TXT_BLACK;}
+    ("red") {return TXT_RED;}
+    ("green") {return TXT_GREEN;}
+    ("yellow") {return TXT_YELLOW;}
+    ("blue") {return TXT_BLUE;}
+    ("magenta") {return TXT_MAGENTA;}
+    ("cyan") {return TXT_CYAN;}
+    ("light_grey") {return TXT_LIGHT_GREY;}
+    ("dark_grey") {return TXT_DARK_GREY;}
+    ("light_red") {return TXT_LIGHT_RED;}
+    ("light_green") {return TXT_LIGHT_GREEN;}
+    ("light_yellow") {return TXT_LIGHT_YELLOW;}
+    ("light_blue") {return TXT_LIGHT_BLUE;}
+    ("light_magenta") {return TXT_LIGHT_MAGENTA;}
+    ("light_cyan") {return TXT_LIGHT_CYAN;}
+    ("white") {return TXT_WHITE;};
+    if [txt].starts_with["rgb_"] {
+        given parse rgb hex [[txt].slice_from[4]] in [stack] as RGB:rgb {
+            return TXT_RGB [rgb.r], [rgb.g], [rgb.b];
+        } else {
+            return null;
+        };
+    } elif [txt].starts_with["on_rgb_"] {
+        given parse rgb hex [[txt].slice_from[7]] in [stack] as RGB:rgb {
+            return TXT_ON_RGB [rgb.r], [rgb.g], [rgb.b];
+        } else {
+            return null;
+        };
+    };
+    [stack].error["arg"]["Invalid text style '{}'" % txt];
+    return null;
 }
 
 $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
@@ -38,6 +124,35 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             [result].extend[[args[i]].get_string];
         };
         return PodStr [inputline[result]];
+    }
+
+    ("style") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        [TextStyle]:styles = [TextStyle] [];
+        for $PodVal:arg in args from 1 {
+            given parse text style [arg] in [stack] as TextStyle:style {
+                [styles].append[style];
+            } else {
+                return null#$PodVal?;
+            };
+        };
+        return PodStr [style [str] with [styles]];
+    }
+
+    ("shouldstyle") {
+        if args {
+            if [args[0]].is_truthy {
+                force enable colorization;
+            } else {
+                force disable colorization;
+            };
+            return pod nil;
+        } else {
+            return pod bool [should colorize output];
+        };
     }
 
     ("promptoptions") {
@@ -132,6 +247,19 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         if stack.active_error {return null#$PodVal?;};
         Str:str = [args[0]].get_string;
         return PodStr [[pod expand path [str]].stringify];
+    }
+
+    ("relpath") {
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Path:a = pod expand path [[args[0]].get_string];
+        Path:b = pod expand path [[args[1]].get_string];
+        given [a].relative_to[b] as Path:r {
+            return PodStr [[r].stringify];
+        } else {
+            return pod nil;
+        };
     }
 
     ("fileext") {

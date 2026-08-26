@@ -126,6 +126,24 @@ PodStr?#base [W:base] convert builtin [[$PodVal]:args] in [PodStack:stack] prefi
     };
 }
 
+Str#lstrip [Str:str] of [Str:chars] {
+    for L:i enumerating str {
+        if ![chars].index_of[str[i]] {
+            return [str].slice_from[i];
+        };
+    };
+    return "";
+}
+
+Str#rstrip [Str:str] of [Str:chars] {
+    for L:i enumerating str step -1 {
+        if ![chars].index_of[str[i]] {
+            return [str].slice[0][i+1];
+        };
+    };
+    return "";
+}
+
 $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
@@ -303,6 +321,17 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         $PodVal:val = args[1]; 
         set var [name] in [lexical_frame] to [val];
         return val;
+    }
+
+    ("global") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        RootPodFrame:root = [stack].get_root_frame;
+        for $PodVal:arg in args {
+            [root.vars].append[PodFrameVar [[arg].get_string, pod nil]];
+        };
+        return pod nil;
     }
 
     ("set") {
@@ -542,6 +571,49 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
     }
 
+    ("lstrip") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        require in [stack] [args[1]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:chars = " \t\n\r";
+        if [args].len >= 2 {
+            chars = [args[1]].get_string;
+        };
+        str = lstrip [str] of [chars];
+        return PodStr [str];
+    }
+
+    ("rstrip") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        require in [stack] [args[1]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:chars = " \t\n\r";
+        if [args].len >= 2 {
+            chars = [args[1]].get_string;
+        };
+        str = rstrip [str] of [chars];
+        return PodStr [str];
+    }
+
+    ("strip") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        require in [stack] [args[1]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:chars = " \t\n\r";
+        if [args].len >= 2 {
+            chars = [args[1]].get_string;
+        };
+        str = lstrip [str] of [chars];
+        str = rstrip [str] of [chars];
+        return PodStr [str];
+    }
+
     ("chr") {
         require in [stack] [args] all match [IntPattern []];
         if stack.active_error {return null#$PodVal?;};
@@ -624,6 +696,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "!",
         "declare",
         "assign",
+        "global",
         "set",
         "args",
         "#args",
@@ -647,8 +720,13 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "#C",
         "chr",
         "ord",
+        "lstrip",
+        "rstrip",
+        "strip",
 
         "print",
+        "style",
+        "shouldstyle",
         "inputline",
         "promptoptions",
         "getenv",
@@ -659,6 +737,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "perfcounter",
         "exit",
         "ep",
+        "relpath",
         "fileext",
         "filestem",
         "cwd",
