@@ -38,6 +38,9 @@ OpaquePattern {
     Str:type
 }
 
+@extends Pattern;
+ErrorPattern {}
+
 Bool#[$PodVal:val].matches[$Pattern:pattern] {
     given pattern as NumberPattern:num_pattern {
         return (val#PodFloat?) || (val#PodInt?);
@@ -69,6 +72,8 @@ Bool#[$PodVal:val].matches[$Pattern:pattern] {
             return [opaque.type] equals [opaque_pattern.type];
         };
         return false;
+    } given pattern as ErrorPattern:error_pattern {
+        return !!(val#PodError?);
     } else {
         abort;
     };
@@ -100,6 +105,8 @@ Str#[$Pattern:pattern].message {
         return result;
     } given pattern as OpaquePattern:opaque_pattern {
         return "#{}" % opaque_pattern.type;
+    } given pattern as ErrorPattern:error_pattern {
+        return "error";
     } else {
         abort;
     };

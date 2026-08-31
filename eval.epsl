@@ -221,6 +221,10 @@ $PodFrame?#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:a
 }
 
 Bool#run cycle in [PodStack:stack] {
+    if consume_interrupt_request {
+        [stack].error["int"]["Keyboard interrupt"];
+    };
+
     $PodFrame:frame = [stack.frames].at[-1];
     given stack.active_error as PodError:active_error {
         given frame.landing as ErrorLanding:landing {
@@ -231,6 +235,7 @@ Bool#run cycle in [PodStack:stack] {
         };
         return false;
     };
+
     given frame as ClearFnPodFrame:clear_frame {
         given clear_frame.recieved as $PodVal:recieved {
             [clear_frame.val_stack].append[recieved];
@@ -266,6 +271,7 @@ Bool#run cycle in [PodStack:stack] {
     } else {
         abort ["Cannot run cycle in frame {}" % frame];
     };
+
     frame.recieved = null;
     return false;
 }
@@ -290,7 +296,8 @@ FrameRunResult#run frame [$PodFrame:frame] in [PodStack:stack] {
 }
 
 #display error [PodError:error] {
-    if ([error.type] equals ["cmd"]) && error.msg {
+    if error.msg && (
+        ([error.type] equals ["cmd"]) || ([error.type] equals ["int"])) {
         println[error.msg];
     } elif error.msg {
         println["{} error:" % error.type];

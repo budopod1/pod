@@ -145,7 +145,7 @@ $PodVal?#check run frame [$PodFrame:frame] in [PodStack:stack] {
 
     run podrc in [stack] vars: [vars];
 
-    set_sigint_disregarded[true];
+    set_sigint_captured[true];
 
     while true {
         Str:prompt_str = "> ";

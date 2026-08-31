@@ -142,24 +142,36 @@ void PPF_restore_std_fd(int64_t target, int64_t original) {
     close((int)original);
 }
 
-bool is_sigint_disregarded = false;
+bool is_sigint_capatured = false;
 
-static void disregard_sigint_handler(int s) {}
+sig_atomic_t interrupt_requested = 0;
 
-void PPF_set_sigint_disregarded(bool disregard) {
-    is_sigint_disregarded = disregard;
+static void sigint_handler(int s) {
+    interrupt_requested = 1;
+}
+
+void PPF_set_sigint_captured(bool capture) {
+    is_sigint_capatured = capture;
     restore_sigint_handler();
 }
 
 void restore_sigint_handler(void) {
     struct sigaction act;
     sigemptyset(&act.sa_mask);
-    if (is_sigint_disregarded) {
-        act.sa_handler = &disregard_sigint_handler;
+    if (is_sigint_capatured) {
+        act.sa_handler = &sigint_handler;
         act.sa_flags = SA_RESTART;
     } else {
         act.sa_handler = SIG_IGN;
         act.sa_flags = 0;
     }
     sigaction(SIGINT, &act, NULL);
+}
+
+bool PPF_consume_interrupt_request(void) {
+    if (interrupt_requested) {
+        interrupt_requested = 0;
+        return true;
+    }
+    return false;
 }

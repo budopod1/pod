@@ -52,6 +52,14 @@ PodArray {
     [$PodVal]:elems
 }
 
+@extends PodVal;
+PodIter {
+    $PodVal:fn,
+    Bool?:lenp,
+    $PodVal?:car_val,
+    $PodVal?:cdr_val,
+}
+
 @super;
 @extends PodVal;
 PodOpaque {
@@ -153,7 +161,9 @@ Bool#[$PodVal:val].is_truthy {
         return true;
     } given val as PodArray:array {
         return !!array.elems;
-    } given val as PodOpaque:opaque {
+    } given val as PodIter:iter {
+        return true;
+    } given val as $PodOpaque:opaque {
         return true;
     } given val as PodError:error {
         return false;
@@ -220,6 +230,8 @@ Str#[$PodVal:val].stringify {
             [elem_str].extend[[elem].stringify];
         };
         return "(arr{})" % elem_str;
+    } given val as PodIter:iter {
+        return "#iterator";
     } given val as $PodOpaque:opaque {
         return ["#"] + [opaque.type];
     } given val as PodError:error {
@@ -258,7 +270,9 @@ Str#[$PodVal:val].stringify_type {
         return "pair";
     } given val as PodArray:array {
         return "array";
-    } given val as PodOpaque:opaque {
+    } given val as PodIter:iter {
+        return "iterator";
+    } given val as $PodOpaque:opaque {
         return opaque.type;
     } given val as PodError:error {
         return "error";
@@ -324,6 +338,8 @@ Bool#[$PodVal:a] equals [$PodVal:b] {
             return true;
         };
         return false;
+    } given a as PodIter:iter {
+        return a == b;
     } given a as $PodOpaque:opaque_a {
         return a == b;
     } given a as PodError:error_a {

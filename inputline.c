@@ -33,14 +33,14 @@ static int event_hook_handler(void) {
     }
 }
 
-extern bool is_sigint_disregarded;
+extern bool is_sigint_capatured;
 
 extern void restore_sigint_handler(void);
 
 ARRAY_char *IL_inputline(ARRAY_char *prompt) {
     EPSL_STR_TO_C_STR(prompt, c_prompt);
 
-    if (is_sigint_disregarded) {
+    if (is_sigint_capatured) {
         readline_exit_needed = 0;
         struct sigaction act = {0};
         act.sa_handler = &readline_int_handler;
@@ -70,7 +70,7 @@ ARRAY_char *IL_inputline(ARRAY_char *prompt) {
     result->capacity = result->length + 1;
     result->content = (char*)line;
 
-    if (is_sigint_disregarded) { 
+    if (is_sigint_capatured) { 
         restore_sigint_handler();
     }
 

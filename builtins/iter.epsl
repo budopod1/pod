@@ -1,0 +1,188 @@
+%import pattern;
+%import frames;
+%import eval;
+%import vals;
+
+Bool#resolve iter [$PodVal:iter] in [PodStack:stack] {
+    given iter as PodInt:int {
+        return false;
+    } given iter as PodNil:nil {
+        return false;
+    } given iter as PodPair:pair {
+        return false;
+    } given iter as PodArray:arr {
+        return false;
+    } given iter as PodIter:iter {
+        if ![iter.lenp].is_null {
+            return false;
+        };
+        PodBuiltinFn:fn = PodBuiltinFn ["#resolve-iter", [$PodVal] []];
+        $PodFrame:sub_frame = make frame in [stack]
+            of [fn] args: [[$PodVal] [iter]];
+        [stack.frames].append[sub_frame];
+        return true;
+    } else {
+        Str:msg = "Expected iterable, got {}" % [iter].stringify_type;
+        [stack].error["arg"][msg];
+        return true;
+    };
+}
+
+Bool#[$PodVal:iter].iter_lenp {
+    given iter as PodInt:int {
+        return int.val > 0;
+    } given iter as PodNil:nil {
+        return false;
+    } given iter as PodPair:pair {
+        return true;
+    } given iter as PodArray:arr {
+        return [arr.elems].len > 0;
+    } given iter as PodIter:iter {
+        return [iter.lenp]
+            .expect["Expected iterable to be resolved"];
+    } else {
+        abort ["Expected an iterable"];
+    };
+}
+
+$PodVal#[$PodVal:iter].iter_car {
+    given iter as PodInt:int {
+        return int;
+    } given iter as PodNil:nil {
+        return nil;
+    } given iter as PodPair:pair {
+        return pair.car;
+    } given iter as PodArray:arr {
+        return [arr.elems[0]?] || [pod nil];
+    } given iter as PodIter:iter {
+        Bool:lenp = [iter.lenp]
+            .expect["Expected iterable to be resolved"];
+        if lenp {
+            return [iter.car_val].unwrap;
+        } else {
+            return pod nil;
+        };
+    } else {
+        abort ["Expected an iterable"];
+    };
+}
+
+$PodVal#[$PodVal:iter].iter_cdr {
+    given iter as PodInt:int {
+        if int.val > 0 {
+            return PodInt [int.val - 1];
+        } else {
+            return int;
+        };
+    } given iter as PodNil:nil {
+        return nil;
+    } given iter as PodPair:pair {
+        return pair.cdr;
+    } given iter as PodArray:arr {
+        return PodIter [
+            PodBuiltinFn ["#array-iter", [$PodVal] [arr, PodInt [1]]],
+            null, null, null
+        ];
+    } given iter as PodIter:iter {
+        Bool:lenp = [iter.lenp]
+            .expect["Expected iterable to be resolved"];
+        if lenp {
+            return [iter.cdr_val].unwrap;
+        } else {
+            return pod nil;
+        };
+    } else {
+        abort ["Expected an iterable"];
+    };
+}
+
+$PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("mkiter") {
+        require in [stack] between [1] and [1] in [args];
+        return PodIter [args[0], null, null, null];
+    }
+
+    ("#resolve-iter") {
+        PodIter:iter = [args[0]#PodIter?].unwrap;
+        given frame.recieved as $PodVal:recieved {
+            given recieved as PodNil:nil {
+                iter.lenp = false;
+            } given recieved as PodPair:pair {
+                iter.lenp = true;
+                iter.car_val = pair.car;
+                iter.cdr_val = pair.cdr;
+            } else {
+                Str:msg = "Expected iterator to return pair or nil, got {}"
+                    % [recieved].stringify_type;
+                [stack].error["arg"][msg];
+            };
+            return pod nil;
+        };
+        $PodVal:_it = PodIter [iter.fn, null, null, null];
+        given make frame in [stack]
+            of [iter.fn] args: [[$PodVal] [_it]]
+        as $PodFrame:sub_frame {
+            [stack.frames].append[sub_frame];
+            given sub_frame as $LexicalPodFrame:lexical_frame {
+                set local var ["_it"] in [lexical_frame] to [_it];
+            };
+        };
+        return null#$PodVal?;
+    }
+
+    ("#array-iter") {
+        PodArray:arr = [frame.builtin.data[0]#PodArray?].unwrap;
+        PodInt:idx_int = [frame.builtin.data[1]#PodInt?].unwrap;
+        L:i = idx_int.val#L;
+        if i >= [arr.elems].len {
+            return pod nil;
+        } else {
+            idx_int.val += 1;
+            return PodPair [arr.elems[i], args[0]];
+        };
+    }
+    
+    ("lenp") { // returns whether a iterable is nonempty
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if resolve iter [args[0]] in [stack] {return null#$PodVal?;};
+        return pod bool [[args[0]].iter_lenp];
+    }
+    
+    ("len~p") { // returns whether a iterable is empty
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if resolve iter [args[0]] in [stack] {return null#$PodVal?;};
+        return pod bool [![args[0]].iter_lenp];
+    }
+
+    ("car") {
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if resolve iter [args[0]] in [stack] {return null#$PodVal?;};
+        return [args[0]].iter_car;
+    }
+
+    ("cdr") {
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if resolve iter [args[0]] in [stack] {return null#$PodVal?;};
+        return [args[0]].iter_cdr;
+    }
+
+    ("both") {
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if resolve iter [args[0]] in [stack] {return null#$PodVal?;};
+        return PodArray [[$PodVal] [
+            [args[0]].iter_car, [args[0]].iter_cdr
+        ]];
+    }
+
+    {
+        return null;
+    };
+}

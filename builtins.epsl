@@ -1,6 +1,7 @@
 %import builtins.basic;
 %import builtins.datatypes;
 %import builtins.flow;
+%import builtins.iter;
 %import builtins.cmd;
 %import builtins.io;
 
@@ -12,6 +13,12 @@
 @extends BuiltinData;
 ComposeBuiltinData {
     [$PodVal]:fns
+}
+
+@extends BuiltinData;
+InplaceSetBuiltinData {
+    Str:name,
+    $PodVal:og_val
 }
 
 PodStr?#base [W:base] convert builtin [[$PodVal]:args] in [PodStack:stack] prefix: [Str:prefix] {
@@ -159,6 +166,10 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     given run flow builtin [frame] in [stack] lexical: [lexical_frame]
     as $PodVal?:result {
+        return result;
+    };
+
+    given run iter builtin [frame] in [stack] as $PodVal?:result {
         return result;
     };
 
@@ -323,6 +334,52 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         return val;
     }
 
+    ("pre") {
+        given frame.data as InplaceSetBuiltinData:data {
+            $PodVal:new_val = [frame.recieved].unwrap;
+            set var [data.name] in [lexical_frame] to [new_val];
+            return new_val;
+        };
+        require in [stack] between [2] and [null] in [args];
+        require in [stack] [args[0]?] matches [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:name = [args[0]#PodSymbol?].unwrap.str;
+        given lookup [name] in [lexical_frame] in [stack] as $PodVal:og_val {
+            frame.data = InplaceSetBuiltinData [
+                name, og_val
+            ];
+            given make frame in [stack] of [args[1]]
+                args: [[[$PodVal] [og_val]] + [[args].slice_from[2]]]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+        };
+        return null#$PodVal?;
+    }
+
+    ("post") {
+        given frame.data as InplaceSetBuiltinData:data {
+            $PodVal:new_val = [frame.recieved].unwrap;
+            set var [data.name] in [lexical_frame] to [new_val];
+            return data.og_val;
+        };
+        require in [stack] between [2] and [null] in [args];
+        require in [stack] [args[0]?] matches [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:name = [args[0]#PodSymbol?].unwrap.str;
+        given lookup [name] in [lexical_frame] in [stack] as $PodVal:og_val {
+            frame.data = InplaceSetBuiltinData [
+                name, og_val
+            ];
+            given make frame in [stack] of [args[1]]
+                args: [[[$PodVal] [og_val]] + [[args].slice_from[2]]]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+        };
+        return null#$PodVal?;
+    }
+
     ("global") {
         require in [stack] between [1] and [null] in [args];
         require in [stack] [args] all match [SymbolPattern []];
@@ -404,50 +461,18 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         return null;
     }
 
-    ("car") {
-        require in [stack] between [1] and [1] in [args];
-        if stack.active_error {return null#$PodVal?;};
-        $PodVal:val = args[0];
-        given args[0] as PodPair:pair {
-            return pair.car;
-        } given val as PodNil:nil {
-            return nil;
-        } else {
-            abort ["car with {} not implemented" % [val].stringify_type];
-        };
-    }
-
-    ("cdr") {
-        require in [stack] between [1] and [1] in [args];
-        if stack.active_error {return null#$PodVal?;};
-        $PodVal:val = args[0];
-        given val as PodPair:pair {
-            return pair.cdr;
-        } given val as PodNil:nil {
-            return nil;
-        } else {
-            abort ["cdr with {} not implemented" % [val].stringify_type];
-        };
-    }
-
-    ("both") {
-        require in [stack] between [1] and [1] in [args];
-        if stack.active_error {return null#$PodVal?;};
-        given args[0] as PodPair:pair {
-            return PodArray [[$PodVal] [pair.car, pair.cdr]];
-        } else {
-            abort ["both with non pair not implemented"];
-        };
-    }
-
     ("defun") {
         require in [stack] between [2] and [2] in [args];
         require in [stack] [args[0]?] matches [SymbolPattern []];
         require in [stack] [args[1]?] matches [FnPattern []];
         if stack.active_error {return null#$PodVal?;};
+        Str:name = [args[0]].get_string;
+        if [name].starts_with["#"] {
+            [stack].error["name"]["Function name may not start with '#'"];
+            return null#PodVal?;
+        };
         register fn [[args[1]#$PodFn?].unwrap]
-            under [[args[0]].get_string]
-            in [stack];
+            under [name] in [stack];
         return pod nil;
     }
 
@@ -458,6 +483,38 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         Str:fn_name = [args[0]].get_string;
         given lookup registered fn [fn_name] in [stack] as $PodFn:fn {
             return fn;
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("errortype") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [ErrorPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodError:error = [args[0]#PodError?].unwrap;
+        return PodStr [error.type];
+    }
+
+    ("errormsg") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [ErrorPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodError:error = [args[0]#PodError?].unwrap;
+        given error.msg as Str:msg {
+            return PodStr [msg];
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("errordata") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [ErrorPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodError:error = [args[0]#PodError?].unwrap;
+        given error.data as $PodVal:result {
+            return result;
         } else {
             return pod nil;
         };
@@ -557,6 +614,21 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("#C") {
         return builtin.data[0];
+    }
+
+    ("chr") {
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:result = [""].clone;
+        for $PodVal:val in args {
+            Z64:int = [val] as int;
+            if (int < 0 || int > 255) {
+                [stack].error["arg"]["Invalid byte value {}" % int];
+                return null#PodVal?;
+            };
+            [result].append[int#Byte];
+        };
+        return PodStr [result];
     }
 
     ("ord") {
@@ -685,6 +757,15 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "try",
         "fork",
 
+        "mkiter",
+        "#resolve-iter",
+        "#array-iter",
+        "lenp",
+        "len~p",
+        "car",
+        "cdr",
+        "both",
+
         "not",
         "or",
         "and",
@@ -696,15 +777,17 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "!",
         "declare",
         "assign",
+        "pre",
+        "post",
         "global",
         "set",
         "args",
         "#args",
-        "car",
-        "cdr",
-        "both",
         "defun",
         "getfun",
+        "errortype",
+        "errormsg",
+        "errordata",
         "repr",
         "bin",
         "oct",

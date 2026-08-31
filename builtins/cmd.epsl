@@ -34,7 +34,13 @@ Bool#check status [PodProcess:pod_proc] cap: [Str?:cap_name] in [PodStack:stack]
         if proc.result_status != 0 {
             Str:msg = "process '{}' exited with status {}"
                 % proc.program % proc.result_status;
-            [stack].error["cmd"][msg];
+            [stack].error[PodError [
+                "cmd",
+                "process '{}' exited with status {}"
+                    % proc.program % proc.result_status,
+                PodInt [proc.result_status],
+                null
+            ]];
             return true;
         };
     };
