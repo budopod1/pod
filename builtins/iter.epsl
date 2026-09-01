@@ -100,6 +100,24 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
     switch builtin.name
+    ("#spread") {
+        $PodVal:iter = args[0];
+        given iter as PodArray:iter_arr {
+            return iter_arr;
+        };
+        PodArray:arr = [builtin.data[0]#PodArray?].unwrap;
+        while true {
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if [iter].iter_lenp {
+                [arr.elems].append[[iter].iter_car];
+                iter = [iter].iter_cdr;
+                args[0] = iter;
+            } else {
+                return arr;
+            };
+        };
+    }
+
     ("mkiter") {
         require in [stack] between [1] and [1] in [args];
         return PodIter [args[0], null, null, null];

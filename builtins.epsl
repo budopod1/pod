@@ -757,6 +757,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "try",
         "fork",
 
+        "#spread",
         "mkiter",
         "#resolve-iter",
         "#array-iter",

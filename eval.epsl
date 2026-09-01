@@ -91,7 +91,11 @@ ForkChildCtx {}
         given arg as $PodExpr:expr {
             compile expr [expr] to [instrs];
         } given arg as PodSpreadArg:spread_arg {
+            [instrs].append[LiteralVMInstr [PodBuiltinFn [
+                "#spread", [$PodVal] [PodArray [[$PodVal] []]]
+            ]]];
             compile expr [spread_arg.expr] to [instrs];
+            [instrs].append[CallFnVMInstr [2, [W] []]];
             [spread_args].append[i];
         } else {
             abort;
@@ -183,11 +187,9 @@ $PodFrame?#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:a
         for W:i to arg_count {
             $PodVal:val = val_stack[[val_stack].len - arg_count + i];
             if [call_fn_instr.spread_args].index_of[i] {
-                given val as PodArray:arr {
-                    [expanded_vals].extend[arr.elems];
-                } else {
-                    abort ["arg spreading with non arrays not implemented"];
-                };
+                PodArray:arr = [val#PodArray?]
+                    .expect["Spread value should be array"];
+                [expanded_vals].extend[arr.elems];
             } else {
                 [expanded_vals].append[val];
             };
