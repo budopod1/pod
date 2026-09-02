@@ -59,6 +59,12 @@ IncludesBuiltinFrameData {
     $PodVal:needle
 }
 
+@extends BuiltinFrameData;
+IdxBuiltinFrameData {
+    $PodVal:iter,
+    L:i
+}
+
 @extends BuiltinCaptureData;
 RangeCaptureData {
     Z64:from,
@@ -660,6 +666,56 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
                 return pod bool [true];
             };
             data.haystack = [iter].iter_cdr;
+        };
+    }
+
+    ("idx") {
+        IdxBuiltinFrameData?:maybe_data = null;
+        given frame.data as IdxBuiltinFrameData:known_data {
+            maybe_data = known_data;
+        } else {
+            require in [stack] between [2] and [2] in [args];
+            require in [stack] [args[1]?] matches [IntPattern []];
+            if stack.active_error {return null#$PodVal?;};
+            Z64:signed_i = [args[1]] as int;
+            if signed_i < 0 {
+                [stack].error["idx"]["Index must be nonnegative"];
+                return null#$PodVal?;
+            };
+            L:i = signed_i#L;
+            if [args[0]].matches[TxtPattern []] {
+                Str:str = [args[0]].get_string;
+                given str[i]? as Byte:byte {
+                    return PodStr [Str [byte]];
+                } else {
+                    [stack].error["idx"]["Index out of range"];
+                    return null#$PodVal?;
+                };
+            };
+            maybe_data = IdxBuiltinFrameData [args[0], i];
+        };
+        IdxBuiltinFrameData:data = [maybe_data].unwrap;
+        frame.data = data;
+        while true {
+            $PodVal:iter = data.iter;
+            given iter as PodArray:arr {
+                given arr.elems[data.i]? as $PodVal:elem {
+                    return elem;
+                } else {
+                    [stack].error["idx"]["Index out of range"];
+                    return null#$PodVal?;
+                };
+            };
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if ![iter].iter_lenp {
+                [stack].error["idx"]["Index out of range"];
+                return null#$PodVal?;
+            };
+            if data.i == 0 {
+                return [iter].iter_car;
+            };
+            data.i -= 1;
+            data.iter = [iter].iter_cdr;
         };
     }
 

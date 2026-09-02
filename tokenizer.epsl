@@ -505,12 +505,12 @@ TokenizationResult#tokenize [Str:input] {
 
     if parse_state == 1 || parse_state == 2 {
         [errors].append[TokenizationError [
-            "Unterminated string literal", [input].len#W
+            "Unterminated string literal", [input].len#W - 1
         ]];
     };
     if parse_state == 3 || parse_state == 4 {
         [errors].append[TokenizationError [
-            "Unterminated byte literal", [input].len#W
+            "Unterminated byte literal", [input].len#W - 1
         ]];
     };
 

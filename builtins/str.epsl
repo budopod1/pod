@@ -1,0 +1,241 @@
+%import pattern;
+%import frames;
+%import eval;
+%import vals;
+
+PadInfo {
+    Str:base,
+    L:len,
+    Byte:pad_chr
+}
+
+Str#lstrip [Str:str] of [Str:chars] {
+    for L:i enumerating str {
+        if ![chars].index_of[str[i]] {
+            return [str].slice_from[i];
+        };
+    };
+    return "";
+}
+
+Str#rstrip [Str:str] of [Str:chars] {
+    for L:i enumerating str step -1 {
+        if ![chars].index_of[str[i]] {
+            return [str].slice[0][i+1];
+        };
+    };
+    return "";
+}
+
+Byte#[Byte:byte].to_lower {
+    if 'A' <= byte && byte <= 'Z' {
+        return [byte] | [32];
+    };
+    return byte;
+}
+
+Byte#[Byte:byte].to_upper {
+    if 'a' <= byte && byte <= 'z' {
+        return [byte] & [95];
+    };
+    return byte;
+}
+
+PadInfo?#pad builtin in [PodStack:stack] args: [[$PodVal]:args] {
+    require in [stack] between [2] and [3] in [args];
+    require in [stack] [args[0]?] matches [TxtPattern []];
+    require in [stack] [args[1]?] matches [IntPattern []];
+    require in [stack] [args[2]?] matches [TxtPattern []];
+    if stack.active_error {return null;};
+    Byte:pad_chr = ' ';
+    given args[2]? as $PodVal:chr_val {
+        Str:chr_str = [chr_val].get_string;
+        if [chr_str].len != 1 {
+            Str:msg = "Expected single character padding string";
+            [stack].error["arg"][msg];
+            return null;
+        };
+        pad_chr = chr_str[0];
+    };
+    Z64:len = [args[1]] as int;
+    if len < 0 {
+        len = 0;
+    };
+    return PadInfo [[[args[0]].get_string].clone, len#L, pad_chr];
+}
+
+$PodVal??#run str builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("chr") {
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:result = [""].clone;
+        for $PodVal:val in args {
+            Z64:int = [val] as int;
+            if (int < 0 || int > 255) {
+                [stack].error["arg"]["Invalid byte value {}" % int];
+                return null#$PodVal?;
+            };
+            [result].append[int#Byte];
+        };
+        return PodStr [result];
+    }
+
+    ("ord") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        given str[0]? as Byte:first_byte {
+            return PodInt [first_byte];
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("lstrip") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        require in [stack] [args[1]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:chars = " \t\n\r";
+        if [args].len >= 2 {
+            chars = [args[1]].get_string;
+        };
+        str = lstrip [str] of [chars];
+        return PodStr [str];
+    }
+
+    ("rstrip") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        require in [stack] [args[1]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:chars = " \t\n\r";
+        if [args].len >= 2 {
+            chars = [args[1]].get_string;
+        };
+        str = rstrip [str] of [chars];
+        return PodStr [str];
+    }
+
+    ("strip") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        require in [stack] [args[1]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:chars = " \t\n\r";
+        if [args].len >= 2 {
+            chars = [args[1]].get_string;
+        };
+        str = lstrip [str] of [chars];
+        str = rstrip [str] of [chars];
+        return PodStr [str];
+    }
+    
+    ("split") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        require in [stack] [args[1]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        [$PodVal]:parts = [$PodVal] [];
+        if [args].len >= 2 {
+            Str:sep = [args[1]].get_string;
+            if [sep].len == 0 {
+                for Byte:byte in str {
+                    [parts].append[PodStr [Str [byte]]];
+                };
+            } else {
+                for Str:part_str in [str].split[sep] {
+                    [parts].append[PodStr [part_str]];
+                };
+            };
+        } else {
+            Str:sep_chrs = " \t\n\r";
+            L?:part_start = null;
+            L:i = 0;
+            while i <= [str].len {
+                if i < [str].len && ![sep_chrs].index_of[str[i]] {
+                    if !part_start {
+                        part_start = i;
+                    };
+                } else {
+                    given part_start as L:start {
+                        [parts].append[PodStr [[str].slice[start][i]]];
+                        part_start = null;
+                    };
+                };
+                i += 1;
+            };
+        };
+        return PodArray [parts];
+    }
+
+    ("replace") {
+        require in [stack] between [3] and [3] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:replacee = [args[1]].get_string;
+        Str:replacement = [args[2]].get_string;
+        if replacee {
+            [Str]:parts = [str].split[replacee];
+            return PodStr [[parts].join[replacement]];
+        } else {
+            [stack].error["arg"]["Cannot replace with empty replacee"];
+            return null#$PodVal?;
+        };
+    }
+
+    ("toupper") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:result = Str [];
+        for Byte:byte in str {
+            [result].append[[byte].to_upper];
+        };
+        return PodStr [result];
+    }
+
+    ("tolower") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:str = [args[0]].get_string;
+        Str:result = Str [];
+        for Byte:byte in str {
+            [result].append[[byte].to_lower];
+        };
+        return PodStr [result];
+    }
+
+    ("lpad") {
+        given pad builtin in [stack] args: [args] as PadInfo:info {
+            [info.base].left_pad[info.len][info.pad_chr];
+            return PodStr [info.base];
+        } else {
+            return null#$PodVal?;
+        };
+    }
+
+    ("rpad") {
+        given pad builtin in [stack] args: [args] as PadInfo:info {
+            [info.base].right_pad[info.len][info.pad_chr];
+            return PodStr [info.base];
+        } else {
+            return null#$PodVal?;
+        };
+    }
+
+    {
+        return null;
+    };
+}

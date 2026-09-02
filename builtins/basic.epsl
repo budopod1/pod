@@ -47,6 +47,20 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("*") {
+        if args && [args[0]].matches[TxtPattern []] {
+            require in [stack] [[args].slice_from[1]] all match [IntPattern []];
+            if stack.active_error {return null#$PodVal?;};
+            Z64:count = 1;
+            for $PodVal:arg in args from 1 {
+                count *= [arg] as int;
+            };
+            if count < 0 {
+                Str:msg = "Cannot repeat string negative number of times";
+                [stack].error["arg"][msg];
+                return null#$PodVal?;
+            };
+            return PodStr[[[args[0]].get_string].repeat[count#L]];
+        };
         require in [stack] [args] all match [NumberPattern []];
         if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {

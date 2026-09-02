@@ -2,6 +2,7 @@
 %import builtins.datatypes;
 %import builtins.flow;
 %import builtins.iter;
+%import builtins.str;
 %import builtins.cmd;
 %import builtins.io;
 
@@ -153,24 +154,6 @@ PodStr?#base [W:base] convert builtin [[$PodVal]:args] in [PodStack:stack] prefi
             in [frame]
             to [PodArray [[vals].slice_from[val_idx]]];
     };
-}
-
-Str#lstrip [Str:str] of [Str:chars] {
-    for L:i enumerating str {
-        if ![chars].index_of[str[i]] {
-            return [str].slice_from[i];
-        };
-    };
-    return "";
-}
-
-Str#rstrip [Str:str] of [Str:chars] {
-    for L:i enumerating str step -1 {
-        if ![chars].index_of[str[i]] {
-            return [str].slice[0][i+1];
-        };
-    };
-    return "";
 }
 
 $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
@@ -479,7 +462,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         } else {
             Str:msg = "Cannot set argument variables in non lexical frame";
             [stack].error["stack"][msg];
-            return null#PodVal?;
+            return null#$PodVal?;
         };
         return null;
     }
@@ -492,7 +475,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         Str:name = [args[0]].get_string;
         if [name].starts_with["#"] {
             [stack].error["name"]["Function name may not start with '#'"];
-            return null#PodVal?;
+            return null#$PodVal?;
         };
         register fn [[args[1]#$PodFn?].unwrap]
             under [name] in [stack];
@@ -645,91 +628,10 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("#C") {
         return [builtin.data#CCaptureData?].unwrap.val;
-    }
+    };
 
-    ("chr") {
-        require in [stack] [args] all match [IntPattern []];
-        if stack.active_error {return null#$PodVal?;};
-        Str:result = [""].clone;
-        for $PodVal:val in args {
-            Z64:int = [val] as int;
-            if (int < 0 || int > 255) {
-                [stack].error["arg"]["Invalid byte value {}" % int];
-                return null#PodVal?;
-            };
-            [result].append[int#Byte];
-        };
-        return PodStr [result];
-    }
-
-    ("ord") {
-        require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]?] matches [TxtPattern []];
-        if stack.active_error {return null#$PodVal?;};
-        Str:str = [args[0]].get_string;
-        given str[0]? as Byte:first_byte {
-            return PodInt [first_byte];
-        } else {
-            return pod nil;
-        };
-    }
-
-    ("lstrip") {
-        require in [stack] between [1] and [2] in [args];
-        require in [stack] [args[0]?] matches [TxtPattern []];
-        require in [stack] [args[1]?] matches [TxtPattern []];
-        if stack.active_error {return null#$PodVal?;};
-        Str:str = [args[0]].get_string;
-        Str:chars = " \t\n\r";
-        if [args].len >= 2 {
-            chars = [args[1]].get_string;
-        };
-        str = lstrip [str] of [chars];
-        return PodStr [str];
-    }
-
-    ("rstrip") {
-        require in [stack] between [1] and [2] in [args];
-        require in [stack] [args[0]?] matches [TxtPattern []];
-        require in [stack] [args[1]?] matches [TxtPattern []];
-        if stack.active_error {return null#$PodVal?;};
-        Str:str = [args[0]].get_string;
-        Str:chars = " \t\n\r";
-        if [args].len >= 2 {
-            chars = [args[1]].get_string;
-        };
-        str = rstrip [str] of [chars];
-        return PodStr [str];
-    }
-
-    ("strip") {
-        require in [stack] between [1] and [2] in [args];
-        require in [stack] [args[0]?] matches [TxtPattern []];
-        require in [stack] [args[1]?] matches [TxtPattern []];
-        if stack.active_error {return null#$PodVal?;};
-        Str:str = [args[0]].get_string;
-        Str:chars = " \t\n\r";
-        if [args].len >= 2 {
-            chars = [args[1]].get_string;
-        };
-        str = lstrip [str] of [chars];
-        str = rstrip [str] of [chars];
-        return PodStr [str];
-    }
-
-    ("chr") {
-        require in [stack] [args] all match [IntPattern []];
-        if stack.active_error {return null#$PodVal?;};
-        Str:result = [""].clone;
-        for $PodVal:val in args {
-            Z64:int = [val] as int;
-            if (int < 0 || int > 255) {
-                [stack].error["arg"]["Invalid byte value {}" % int];
-                return null#PodVal?;
-            };
-            [result].append[int#Byte];
-        };
-        return PodStr [result];
+    given run str builtin [frame] in [stack] as $PodVal?:result {
+        return result;
     };
 
     given run io builtin [frame] in [stack] as $PodVal?:result {
@@ -805,6 +707,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "some",
         "every",
         "includes",
+        "idx",
 
         "not",
         "or",
@@ -836,11 +739,18 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "compose",
         "_",
         "C",
+
         "chr",
         "ord",
         "lstrip",
         "rstrip",
         "strip",
+        "split",
+        "replace",
+        "toupper",
+        "tolower",
+        "lpad",
+        "rpad",
 
         "print",
         "style",
