@@ -484,6 +484,7 @@ exit:
 
     free(arrs.poll_fds);
     free(arrs.outs);
+    free(arrs.ins);
     free(arrs.stored_ptrs);
     return err;
 }

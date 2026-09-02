@@ -1,7 +1,7 @@
 set n = (int (inputline "Number? "))
 
 set prime = (all :(each (range 2 $n) {% $n $0}))
-# or perhaps in the future
+# or:
 # set prime = (every (map (range 2 $n) {% $n $0}))
 
 print (choose $prime "prime" "not prime")

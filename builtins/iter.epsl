@@ -9,6 +9,12 @@ SpreadBuiltinFrameData {
     [$PodVal]:elems
 }
 
+@extends BuiltinFrameData;
+LenBuiltinFrameData {
+    $PodVal:iter,
+    Z64:count
+}
+
 @extends LoopBuiltinFrameData;
 EachBuiltinFrameData {
     [$PodVal]:iters,
@@ -38,6 +44,19 @@ ReduceBuiltinFrameData {
     $PodVal:fn,
     $PodVal?:last,
     Bool:ran_body
+}
+
+@extends BuiltinFrameData;
+EveryBuiltinFrameData {
+    $PodVal:iter,
+    $PodVal?:fn,
+    Bool:ran_fn
+}
+
+@extends BuiltinFrameData;
+IncludesBuiltinFrameData {
+    $PodVal:haystack,
+    $PodVal:needle
 }
 
 @extends BuiltinCaptureData;
@@ -157,6 +176,49 @@ $PodVal#[$PodVal:iter].iter_cdr {
     };
 }
 
+$PodVal??#iter cond builtin [BuiltinPodFrame:frame] in [PodStack:stack] every: [Bool:every] {
+    EveryBuiltinFrameData?:maybe_data = null;
+    given frame.data as EveryBuiltinFrameData:known_data {
+        maybe_data = known_data;
+    } else {
+        [$PodVal]:args = frame.arg_vals;
+        require in [stack] between [1] and [2] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        maybe_data = EveryBuiltinFrameData [args[0], args[1]?, false];
+    };
+    EveryBuiltinFrameData:data = [maybe_data].unwrap;
+    if data.ran_fn {
+        Bool:truth = [[frame.recieved].unwrap].is_truthy;
+        if every != truth {
+            return pod bool [truth];
+        };
+        data.ran_fn = false;
+    };
+    while true {
+        frame.data = data;
+        $PodVal:iter = data.iter;
+        if resolve iter [iter] in [stack] {return null#$PodVal?;};
+        if ![iter].iter_lenp {
+            return pod bool [every];
+        };
+        data.iter = [iter].iter_cdr;
+        $PodVal:car = [iter].iter_car;
+        given data.fn as $PodVal:fn {
+            given make frame in [stack] of [fn] args: [[$PodVal] [car]]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+            data.ran_fn = true;
+            return null#$PodVal?;
+        } else {
+            Bool:truth = [car].is_truthy;
+            if every != truth {
+                return pod bool [truth];
+            };
+        };
+    };
+} 
+
 $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
@@ -242,6 +304,36 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         if stack.active_error {return null#$PodVal?;};
         if resolve iter [args[0]] in [stack] {return null#$PodVal?;};
         return pod bool [![args[0]].iter_lenp];
+    }
+
+    ("len") {
+        LenBuiltinFrameData?:maybe_data = null;
+        given frame.data as LenBuiltinFrameData:known_data {
+            maybe_data = known_data;
+        } else {
+            require in [stack] between [1] and [1] in [args];
+            if stack.active_error {return null#$PodVal?;};
+            if [args[0]].matches[TxtPattern []] {
+                return PodInt [[[args[0]].get_string].len];
+            };
+            maybe_data = LenBuiltinFrameData [args[0], 0];
+        };
+        LenBuiltinFrameData:data = [maybe_data].unwrap;
+        frame.data = data;
+        while true {
+            $PodVal:iter = data.iter;
+            given iter as PodInt:int {
+                return PodInt [data.count + int.val];
+            } given iter as PodArray:arr {
+                return PodInt [data.count + [arr.elems].len];
+            };
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if ![iter].iter_lenp {
+                return PodInt [data.count];
+            };
+            data.iter = [iter].iter_cdr;
+            data.count += 1;
+        };
     }
 
     ("car") {
@@ -523,6 +615,52 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             args[0], args[1], args[2]?, false
         ];
         return null#$PodVal?;
+    }
+
+    ("some") {
+        return iter cond builtin [frame] in [stack] every: [false];
+    }
+
+    ("every") {
+        return iter cond builtin [frame] in [stack] every: [true];
+    }
+
+    ("includes") {
+        IncludesBuiltinFrameData?:maybe_data = null;
+        given frame.data as IncludesBuiltinFrameData:known_data {
+            maybe_data = known_data;
+        } else {
+            require in [stack] between [2] and [2] in [args];
+            if stack.active_error {return null#$PodVal?;};
+            if [args[0]].matches[TxtPattern []] {
+                require in [stack] [args[1]] matches [TxtPattern []];
+                if stack.active_error {return null#$PodVal?;};
+                Str:haystack = [args[0]].get_string;
+                Str:needle = [args[1]].get_string;
+                return pod bool[!![haystack].index_of[needle]];
+            };
+            maybe_data = IncludesBuiltinFrameData [args[0], args[1]];
+        };
+        IncludesBuiltinFrameData:data = [maybe_data].unwrap;
+        frame.data = data;
+        while true {
+            $PodVal:iter = data.haystack;
+            given iter as PodArray:arr {
+                for $PodVal:elem in arr.elems {
+                    if [elem] equals [data.needle] {
+                        return pod bool [true];
+                    };
+                };
+                return pod bool [false];
+            };
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if ![iter].iter_lenp {
+                return pod bool [false];
+            } elif [[iter].iter_car] equals [data.needle] {
+                return pod bool [true];
+            };
+            data.haystack = [iter].iter_cdr;
+        };
     }
 
     {

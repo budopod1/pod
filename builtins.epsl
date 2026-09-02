@@ -261,8 +261,6 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         return last;
     }
-    // TODO: some/every are equivalent to any/all except they take
-    // an iterable and (optionally) a mapping function
 
     ("min") {
         require in [stack] between [1] and [null] in [args];
@@ -793,6 +791,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "mkiter",
         "lenp",
         "len~p",
+        "len",
         "car",
         "cdr",
         "both",
@@ -803,6 +802,9 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "map",
         "filter",
         "reduce",
+        "some",
+        "every",
+        "includes",
 
         "not",
         "or",
