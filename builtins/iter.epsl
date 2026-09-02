@@ -1,7 +1,69 @@
+%import builtins.flow;
 %import pattern;
 %import frames;
 %import eval;
 %import vals;
+
+@extends BuiltinFrameData;
+SpreadBuiltinFrameData {
+    [$PodVal]:elems
+}
+
+@extends LoopBuiltinFrameData;
+EachBuiltinFrameData {
+    [$PodVal]:iters,
+    $PodVal:body,
+    Bool:ran_body,
+    [$PodVal]:result
+}
+
+@extends LoopBuiltinFrameData;
+ForBuiltinFrameData {
+    $PodVal:iter,
+    $PodVal:body,
+    $PodVal?:else_
+}
+
+@extends BuiltinFrameData;
+MapBuiltinFrameData {}
+
+@extends BuiltinFrameData;
+FilterBuiltinFrameData {
+    $PodVal?:tested_car
+}
+
+@extends BuiltinFrameData;
+ReduceBuiltinFrameData {
+    $PodVal:iter,
+    $PodVal:fn,
+    $PodVal?:last,
+    Bool:ran_body
+}
+
+@extends BuiltinCaptureData;
+RangeCaptureData {
+    Z64:from,
+    Z64?:to,
+    Z64:step
+}
+
+@extends BuiltinCaptureData;
+ArrayIterCaptureData {
+    PodArray:arr,
+    L:i
+}
+
+@extends BuiltinCaptureData;
+MapCaptureData {
+    [$PodVal]:iters,
+    $PodVal:fn
+}
+
+@extends BuiltinCaptureData;
+FilterCaptureData {
+    $PodVal:iter,
+    $PodVal:fn
+}
 
 Bool#resolve iter [$PodVal:iter] in [PodStack:stack] {
     given iter as PodInt:int {
@@ -16,7 +78,7 @@ Bool#resolve iter [$PodVal:iter] in [PodStack:stack] {
         if ![iter.lenp].is_null {
             return false;
         };
-        PodBuiltinFn:fn = PodBuiltinFn ["#resolve-iter", [$PodVal] []];
+        PodBuiltinFn:fn = PodBuiltinFn ["#resolve-iter", null];
         $PodFrame:sub_frame = make frame in [stack]
             of [fn] args: [[$PodVal] [iter]];
         [stack.frames].append[sub_frame];
@@ -79,10 +141,9 @@ $PodVal#[$PodVal:iter].iter_cdr {
     } given iter as PodPair:pair {
         return pair.cdr;
     } given iter as PodArray:arr {
-        return PodIter [
-            PodBuiltinFn ["#array-iter", [$PodVal] [arr, PodInt [1]]],
-            null, null, null
-        ];
+        return mkiter [PodBuiltinFn [
+            "#array-iter", ArrayIterCaptureData [arr, 1]
+        ]];
     } given iter as PodIter:iter {
         Bool:lenp = [iter.lenp]
             .expect["Expected iterable to be resolved"];
@@ -105,22 +166,28 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         given iter as PodArray:iter_arr {
             return iter_arr;
         };
-        PodArray:arr = [builtin.data[0]#PodArray?].unwrap;
+        [$PodVal]:elems = [$PodVal] [];
+        given frame.data as SpreadBuiltinFrameData:frame_data {
+            elems = frame_data.elems;
+        } else {
+            frame.data = SpreadBuiltinFrameData [elems];
+        };
         while true {
             if resolve iter [iter] in [stack] {return null#$PodVal?;};
             if [iter].iter_lenp {
-                [arr.elems].append[[iter].iter_car];
+                [elems].append[[iter].iter_car];
                 iter = [iter].iter_cdr;
                 args[0] = iter;
             } else {
-                return arr;
+                return PodArray [elems];
             };
         };
     }
 
     ("mkiter") {
         require in [stack] between [1] and [1] in [args];
-        return PodIter [args[0], null, null, null];
+        if stack.active_error {return null#$PodVal?;};
+        return mkiter [args[0]];
     }
 
     ("#resolve-iter") {
@@ -139,7 +206,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             };
             return pod nil;
         };
-        $PodVal:_it = PodIter [iter.fn, null, null, null];
+        $PodVal:_it = mkiter [iter.fn];
         given make frame in [stack]
             of [iter.fn] args: [[$PodVal] [_it]]
         as $PodFrame:sub_frame {
@@ -152,14 +219,14 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("#array-iter") {
-        PodArray:arr = [frame.builtin.data[0]#PodArray?].unwrap;
-        PodInt:idx_int = [frame.builtin.data[1]#PodInt?].unwrap;
-        L:i = idx_int.val#L;
-        if i >= [arr.elems].len {
+        ArrayIterCaptureData:cap_data =
+            [frame.builtin.data#ArrayIterCaptureData?].unwrap;
+        L:i = cap_data.i;
+        if i >= [cap_data.arr.elems].len {
             return pod nil;
         } else {
-            idx_int.val += 1;
-            return PodPair [arr.elems[i], args[0]];
+            cap_data.i += 1;
+            return PodPair [cap_data.arr.elems[i], args[0]];
         };
     }
     
@@ -198,6 +265,264 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         return PodArray [[$PodVal] [
             [args[0]].iter_car, [args[0]].iter_cdr
         ]];
+    }
+
+    ("#range") {
+        RangeCaptureData:data = [builtin.data#RangeCaptureData?].unwrap;
+        Bool:cont = true;
+        given data.to as Z64:to {
+            if data.step > 0 {
+                cont = data.from < to;
+            } else {
+                cont = data.from > to;
+            };
+        };
+        if cont {
+            $PodVal:val = PodInt [data.from];
+            data.from += data.step;
+            return PodPair [val, args[0]];
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("range") {
+        require in [stack] between [1] and [3] in [args];
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Z64:from = 0;
+        Z64:to = 0;
+        Z64:step = 1;
+        if [args].len == 3 {
+            from = [args[0]] as int;
+            to = [args[1]] as int;
+            step = [args[2]] as int;
+        } elif [args].len == 2 {
+            from = [args[0]] as int;
+            to = [args[1]] as int;
+        } elif [args].len == 1 {
+            to = [args[0]] as int;
+        };
+        return mkiter [PodBuiltinFn [
+            "#range", RangeCaptureData [from, to, step]
+        ]];
+    }
+
+    ("count") {
+        require in [stack] between [0] and [2] in [args];
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Z64:from = 0;
+        Z64:step = 1;
+        if [args].len >= 1 {
+            from = [args[0]] as int;
+        };
+        if [args].len >= 2 {
+            step = [args[1]] as int;
+        };
+        return mkiter [PodBuiltinFn [
+            "#range", RangeCaptureData [from, null, step]
+        ]];
+    }
+
+    ("each") {
+        given frame.data as EachBuiltinFrameData:data {
+            if data.ran_body {
+                data.ran_body = false;
+                if data.break_requested {
+                    return PodArray [data.result];
+                };
+                if !data.continue_requested {
+                    [data.result].append[[frame.recieved].unwrap];
+                };
+            };
+            for $PodVal:iter in data.iters {
+                if resolve iter [iter] in [stack] {return null#$PodVal?;};
+                if ![iter].iter_lenp {
+                    return PodArray [data.result];
+                };
+            };
+            [$PodVal]:sub_args = [$PodVal] [];
+            for L:i enumerating data.iters {
+                $PodVal:iter = data.iters[i];
+                [sub_args].append[[iter].iter_car];
+                data.iters[i] = [iter].iter_cdr;
+            };
+            given make frame in [stack] of [data.body] args: [sub_args]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+            data.ran_body = true;
+            return null#$PodVal?;
+        };
+        require in [stack] between [2] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        [$PodVal]:iters = [args].slice[0][[args].len - 1];
+        $PodVal:body = [args].at[-1];
+        frame.data = EachBuiltinFrameData [
+            false, false,
+            iters, body, false, [$PodVal] []
+        ];
+        return null#$PodVal?;
+    }
+
+    ("for") {
+        given frame.data as ForBuiltinFrameData:data {
+            if data.break_requested {
+                return [frame.recieved].unwrap;
+            };
+            $PodVal:iter = data.iter;
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if ![iter].iter_lenp {
+                given data.else_ as $PodVal:else_ {
+                    given make frame in [stack] of [else_]
+                        args: [[$PodVal] []]
+                    as $PodFrame:sub_frame {
+                        replace top of [stack] with [sub_frame];
+                    };
+                    return null#$PodVal?;
+                } else {
+                    return pod nil;
+                };
+            };
+            [$PodVal]:sub_args = [$PodVal] [[iter].iter_car];
+            data.iter = [iter].iter_cdr;
+            given make frame in [stack] of [data.body] args: [sub_args]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+            return null#$PodVal?;
+        };
+        require in [stack] between [2] and [4] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        $PodVal?:maybe_else = null;
+        if [args].len >= 3 {
+            require in [stack] [args[2]?] matches [ExactSymbolPattern ["else"]];
+            if stack.active_error {return null#$PodVal?;};
+            if [args].len < 4 {
+                [stack].error["arg"]["Expected block after 'else'"];
+                return null#$PodVal?;
+            };
+            maybe_else = args[3];
+        };
+        frame.data = ForBuiltinFrameData [
+            false, false,
+            args[0], args[1], maybe_else
+        ];
+        return null#$PodVal?;
+    }
+
+    ("#map") {
+        given frame.data as MapBuiltinFrameData:frame_data {
+            // frame data is only set once the mapping function is ran
+            return PodPair [[frame.recieved].unwrap, args[0]];
+        };
+        MapCaptureData:cap_data = [builtin.data#MapCaptureData?].unwrap;
+        for $PodVal:iter in cap_data.iters {
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if ![iter].iter_lenp {
+                return pod nil;
+            };
+        };
+        [$PodVal]:sub_args = [$PodVal] [];
+        for L:i enumerating cap_data.iters {
+            $PodVal:iter = cap_data.iters[i];
+            [sub_args].append[[iter].iter_car];
+            cap_data.iters[i] = [iter].iter_cdr;
+        };
+        given make frame in [stack] of [cap_data.fn] args: [sub_args]
+        as $PodFrame:sub_frame {
+            [stack.frames].append[sub_frame];
+        };
+        frame.data = MapBuiltinFrameData [];
+        return null#$PodVal?;
+    }
+
+    ("map") {
+        require in [stack] between [2] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        $PodVal:fn = [args].at[-1];
+        [$PodVal]:iters = [args].slice[0][[args].len - 1];
+        return mkiter [PodBuiltinFn [
+            "#map", MapCaptureData [iters, fn]
+        ]];
+    }
+
+    ("#filter") {
+        given frame.data as FilterBuiltinFrameData:frame_data {
+            given frame_data.tested_car as $PodVal:result_car {
+                if [[frame.recieved].unwrap].is_truthy {
+                    return PodPair [result_car, args[0]];
+                };
+                frame_data.tested_car = null;
+            };
+        };
+        FilterCaptureData:cap_data
+            = [builtin.data#FilterCaptureData?].unwrap;
+        $PodVal:iter = cap_data.iter;
+        if resolve iter [iter] in [stack] {return null#$PodVal?;};
+        if ![iter].iter_lenp {
+            return pod nil;
+        };
+        cap_data.iter = [iter].iter_cdr;
+        $PodVal:car = [iter].iter_car;
+        frame.data = FilterBuiltinFrameData [car];
+        given make frame in [stack] of [cap_data.fn] args: [[$PodVal] [car]]
+        as $PodFrame:sub_frame {
+            [stack.frames].append[sub_frame];
+        };
+        return null#$PodVal?;
+    }
+
+    ("filter") {
+        require in [stack] between [1] and [2] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        $PodVal:iter = args[0];
+        $PodVal:fn = [args[1]?] || [PodBuiltinFn ["bool", null]];
+        return mkiter [PodBuiltinFn [
+            "#filter", FilterCaptureData [iter, fn]
+        ]];
+    }
+
+    ("reduce") {
+        given frame.data as ReduceBuiltinFrameData:data {
+            if data.ran_body {
+                data.last = [frame.recieved].unwrap;
+            };
+            $PodVal:iter = data.iter;
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if ![iter].iter_lenp {
+                given data.last as $PodVal:result {
+                    return result;
+                } else {
+                    Str:msg = ["reduce with empty iterable and no "]
+                        + ["initial value not allowed"];
+                    [stack].error["arg"][msg];
+                    return null#$PodVal?;
+                };
+            };
+            $PodVal:car = [iter].iter_car;
+            data.iter = [iter].iter_cdr;
+            given data.last as $PodVal:last {
+                given make frame in [stack] of [data.fn]
+                    args: [[$PodVal] [last, car]]
+                as $PodFrame:sub_frame {
+                    [stack.frames].append[sub_frame];
+                };
+                data.ran_body = true;
+                return null#$PodVal?;
+            } else {
+                data.last = car;
+                return null#$PodVal?;
+            };
+            return null#$PodVal?;
+        };
+        require in [stack] between [2] and [3] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        frame.data = ReduceBuiltinFrameData [
+            args[0], args[1], args[2]?, false
+        ];
+        return null#$PodVal?;
     }
 
     {

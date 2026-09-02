@@ -5,36 +5,37 @@
 %import vals;
 
 @super;
-@extends BuiltinData;
-LoopBuiltinData {
-    Bool:break_requested
+@extends BuiltinFrameData;
+LoopBuiltinFrameData {
+    Bool:break_requested,
+    Bool:continue_requested
 }
 
-@extends LoopBuiltinData;
-ForeverBuiltinData {}
+@extends LoopBuiltinFrameData;
+ForeverBuiltinFrameData {}
 
-@extends LoopBuiltinData;
-WhileBuiltinData {
+@extends LoopBuiltinFrameData;
+WhileBuiltinFrameData {
     Bool:cond_ran
 }
 
-@extends BuiltinData;
-IfBuiltinData {
+@extends BuiltinFrameData;
+IfBuiltinFrameData {
     [$PodVal]:cond_fns,
     [$PodVal]:body_fns,
     $PodVal?:else_,
 }
 
-@extends BuiltinData;
-CaseBuiltinData {
+@extends BuiltinFrameData;
+CaseBuiltinFrameData {
     $PodVal:val,
     [$PodVal]:case_conds,
     [$PodVal]:case_bodies,
     $PodVal?:default_body
 }
 
-@extends BuiltinData;
-TryBuiltinData {
+@extends BuiltinFrameData;
+TryBuiltinFrameData {
     $PodVal:catch,
     [Str]:types
 }
@@ -56,10 +57,11 @@ $PodVal??#loop jmp in [PodStack:stack] from [$LexicalPodFrame:lexical_frame] arg
         };
         L:i = [[stack.frames].index_of[lexical_frame]] || [0];
         given stack.frames[i-1]? as BuiltinPodFrame:builtin_frame {
-            given builtin_frame.data as $LoopBuiltinData:loop_data {
+            given builtin_frame.data as $LoopBuiltinFrameData:loop_data {
                 if ([lexical_frame.label] equals [maybe_label])
                     || !maybe_label {
                     loop_data.break_requested = break_;
+                    loop_data.continue_requested = !break_;
                     break;
                 };
             };
@@ -83,7 +85,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
     [$PodVal]:args = frame.arg_vals;
     switch builtin.name
     ("forever") {
-        given frame.data as ForeverBuiltinData:data {
+        given frame.data as ForeverBuiltinFrameData:data {
             if data.break_requested {
                 return [frame.recieved].unwrap;
             };
@@ -94,13 +96,13 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         } else {
             require in [stack] between [1] and [1] in [args];
             if stack.active_error {return null#$PodVal?;};
-            frame.data = ForeverBuiltinData [false];
+            frame.data = ForeverBuiltinFrameData [false, false];
         };
         return null#$PodVal?;
     }
 
     ("if") {
-        given frame.data as IfBuiltinData:data {
+        given frame.data as IfBuiltinFrameData:data {
             given frame.recieved as $PodVal:recieved {
                 $PodVal:body_fn = [data.body_fns].pop[0];
                 if [recieved].is_truthy {
@@ -147,7 +149,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         };
 
         W:i = 2;
-        IfBuiltinData:new_data = IfBuiltinData [
+        IfBuiltinFrameData:new_data = IfBuiltinFrameData [
             [$PodVal] [], [$PodVal] [], null
         ];
         while i < [args].len {
@@ -189,7 +191,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
     }
 
     ("case") {
-        given frame.data as CaseBuiltinData:data {
+        given frame.data as CaseBuiltinFrameData:data {
             if !data.case_bodies {
                 given data.default_body as $PodVal:default_body {
                     given make frame in [stack] of [default_body]
@@ -239,14 +241,14 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
                 [case_bodies].append[args[i + 1]];
             };
         };
-        frame.data = CaseBuiltinData [
+        frame.data = CaseBuiltinFrameData [
             args[0], case_conds, case_bodies, default_body
         ];
         return null#$PodVal?;
     }
 
     ("while") {
-        given frame.data as WhileBuiltinData:data {
+        given frame.data as WhileBuiltinFrameData:data {
             if data.break_requested {
                 return [frame.recieved].unwrap;
             };
@@ -277,7 +279,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         };
         require in [stack] between [1] and [2] in [args];
         if stack.active_error {return null#$PodVal?;};
-        frame.data = WhileBuiltinData [false, false];
+        frame.data = WhileBuiltinFrameData [false, false, false];
         return null#$PodVal?;
     }
     
@@ -369,7 +371,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         };
 
         given [frame].consume_error as PodError:error {
-            TryBuiltinData:data = [frame.data#TryBuiltinData?].unwrap;
+            TryBuiltinFrameData:data = [frame.data#TryBuiltinFrameData?].unwrap;
             Bool:found = false;
             for Str:type_option in data.types {
                 if [type_option] equals [error.type] {
@@ -400,7 +402,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
             [caught_types].append[[type_val].get_string];
         };
 
-        frame.data = TryBuiltinData [[args].at[-1], caught_types];
+        frame.data = TryBuiltinFrameData [[args].at[-1], caught_types];
         frame.landing = ErrorLanding [null];
 
         given make frame in [stack] of [args[0]] args: [[$PodVal] []]

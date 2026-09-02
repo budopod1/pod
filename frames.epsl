@@ -59,11 +59,11 @@ RootPodFrame {}
 @extends PodFrame;
 BuiltinPodFrame {
     PodBuiltinFn:builtin,
-    $BuiltinData?:data
+    $BuiltinFrameData?:data
 }
 
 @super;
-BuiltinData {}
+BuiltinFrameData {}
 
 @extends LexicalPodFrame;
 ClearFnPodFrame {

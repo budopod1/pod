@@ -10,8 +10,8 @@
 %import proc;
 %import time;
 
-@extends BuiltinData;
-TimeBuiltinData {
+@extends BuiltinFrameData;
+TimeBuiltinFrameData {
     R:start_time
 }
 
@@ -202,7 +202,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("time") {
-        given frame.data as TimeBuiltinData:data {
+        given frame.data as TimeBuiltinFrameData:data {
             R:elapsed = read perf counter - data.start_time;
             Str:msg = "\nelapsed    {}m{}s\n"
                 % (elapsed#W ~/ 60) % (elapsed % 60);
@@ -211,7 +211,7 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         require in [stack] between [1] and [null] in [args];
         if stack.active_error {return null#$PodVal?;};
-        frame.data = TimeBuiltinData [read perf counter];
+        frame.data = TimeBuiltinFrameData [read perf counter];
         given make frame in [stack] of [args[0]]
             args: [[args].slice_from[1]]
         as $PodFrame:sub_frame {

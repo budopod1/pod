@@ -10,15 +10,37 @@
 %import eval;
 %import vals;
 
-@extends BuiltinData;
-ComposeBuiltinData {
+@extends BuiltinFrameData;
+ComposeBuiltinFrameData {
     [$PodVal]:fns
 }
 
-@extends BuiltinData;
-InplaceSetBuiltinData {
+@extends BuiltinFrameData;
+InplaceSetBuiltinFrameData {
     Str:name,
     $PodVal:og_val
+}
+
+@extends BuiltinCaptureData;
+ArgsCaptureData {
+    [$PodVal]:name_vals,
+    $PodVal:fn
+}
+
+@extends BuiltinCaptureData;
+ParCaptureData {
+    $PodVal:fn,
+    [$PodVal]:args
+}
+
+@extends BuiltinCaptureData;
+ComposeCaptureData {
+    [$PodVal]:fns
+}
+
+@extends BuiltinCaptureData;
+CCaptureData {
+    $PodVal:val
 }
 
 PodStr?#base [W:base] convert builtin [[$PodVal]:args] in [PodStack:stack] prefix: [Str:prefix] {
@@ -335,7 +357,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("pre") {
-        given frame.data as InplaceSetBuiltinData:data {
+        given frame.data as InplaceSetBuiltinFrameData:data {
             $PodVal:new_val = [frame.recieved].unwrap;
             set var [data.name] in [lexical_frame] to [new_val];
             return new_val;
@@ -345,7 +367,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         if stack.active_error {return null#$PodVal?;};
         Str:name = [args[0]#PodSymbol?].unwrap.str;
         given lookup [name] in [lexical_frame] in [stack] as $PodVal:og_val {
-            frame.data = InplaceSetBuiltinData [
+            frame.data = InplaceSetBuiltinFrameData [
                 name, og_val
             ];
             given make frame in [stack] of [args[1]]
@@ -358,7 +380,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("post") {
-        given frame.data as InplaceSetBuiltinData:data {
+        given frame.data as InplaceSetBuiltinFrameData:data {
             $PodVal:new_val = [frame.recieved].unwrap;
             set var [data.name] in [lexical_frame] to [new_val];
             return data.og_val;
@@ -368,7 +390,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         if stack.active_error {return null#$PodVal?;};
         Str:name = [args[0]#PodSymbol?].unwrap.str;
         given lookup [name] in [lexical_frame] in [stack] as $PodVal:og_val {
-            frame.data = InplaceSetBuiltinData [
+            frame.data = InplaceSetBuiltinFrameData [
                 name, og_val
             ];
             given make frame in [stack] of [args[1]]
@@ -434,12 +456,15 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         if stack.active_error {return null#$PodVal?;};
         require in [stack] [[args].at[-1]] matches [FnPattern []];
         if stack.active_error {return null#$PodVal?;};
-        return PodBuiltinFn ["#args", args];
+        return PodBuiltinFn ["#args", ArgsCaptureData [
+            [args].slice[0][[args].len - 1], [args].at[-1]
+        ]];
     }
 
     ("#args") {
+        ArgsCaptureData:data = [builtin.data#ArgsCaptureData?].unwrap;
         $PodFrame?:maybe_sub_frame = make frame in [stack]
-            of [[builtin.data].at[-1]] args: [args];
+            of [data.fn] args: [args];
         if !maybe_sub_frame {
             return null#$PodVal?;
         };
@@ -447,7 +472,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         replace top of [stack] with [sub_frame];
         given sub_frame as $LexicalPodFrame:lexical_frame {
             [Str]:var_names = [Str] [];
-            for $PodVal:name_val in builtin.data to [builtin.data].len-1 {
+            for $PodVal:name_val in data.name_vals {
                 require in [stack] [name_val] matches [SymbolPattern []];
                 if stack.active_error {return null#$PodVal?;};
                 [var_names].append[[name_val#PodSymbol?].unwrap.str];
@@ -541,61 +566,69 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     ("par") { // partial application
         require in [stack] between [1] and [null] in [args];
         if stack.active_error {return null#$PodVal?;};
-        return PodBuiltinFn ["#par", args];
+        return PodBuiltinFn ["#par", ParCaptureData [
+            args[0], [args].slice_from[1]
+        ]];
     }
 
     ("#par") {
-        $PodVal:fn = builtin.data[0];
-        [$PodVal]:full_args = [[builtin.data].slice_from[1]] + [args];
-        given make frame in [stack] of [fn] args: [full_args]
+        ParCaptureData:data = [builtin.data#ParCaptureData?].unwrap;
+        [$PodVal]:full_args = [data.args] + [args];
+        given make frame in [stack] of [data.fn] args: [full_args]
         as $PodFrame:sub_frame {
             replace top of [stack] with [sub_frame];
         };
-        return null;
+        return null#$PodVal?;
     }
 
     ("rpar") { // reverse partial application
         require in [stack] between [1] and [null] in [args];
         if stack.active_error {return null#$PodVal?;};
-        return PodBuiltinFn ["#rpar", args];
+        return PodBuiltinFn ["#rpar", ParCaptureData [
+            args[0], [args].slice_from[1]
+        ]];
     }
 
     ("#rpar") {
-        $PodVal:fn = builtin.data[0];
-        [$PodVal]:full_args = [args] + [[builtin.data].slice_from[1]];
-        given make frame in [stack] of [fn] args: [full_args]
+        ParCaptureData:data = [builtin.data#ParCaptureData?].unwrap;
+        [$PodVal]:full_args = [args] + [data.args];
+        given make frame in [stack] of [data.fn] args: [full_args]
         as $PodFrame:sub_frame {
             replace top of [stack] with [sub_frame];
         };
-        return null;
+        return null#$PodVal?;
     }
 
     ("compose") {
         require in [stack] between [1] and [null] in [args];
         if stack.active_error {return null#$PodVal?;};
-        return PodBuiltinFn ["#compose", args];
+        return PodBuiltinFn ["#compose", ComposeCaptureData [args]];
     }
 
     ("#compose") {
-        given frame.data as ComposeBuiltinData:data {
+        given frame.data as ComposeBuiltinFrameData:frame_data {
             $PodVal:val = [frame.recieved].unwrap;
-            if !data.fns {
+            if !frame_data.fns {
                 return val;
             };
             given make frame in [stack]
-                of [[data.fns].pop_end] args: [[$PodVal] [val]]
+                of [[frame_data.fns].pop_end] args: [[$PodVal] [val]]
             as $PodFrame:sub_frame {
                 [stack.frames].append[sub_frame];
             };
         } else {
-            frame.data = ComposeBuiltinData [builtin.data];
+            ComposeCaptureData:cap_data
+                = [builtin.data#ComposeCaptureData?].unwrap;
+            ComposeBuiltinFrameData:frame_data
+                = ComposeBuiltinFrameData [[cap_data.fns].clone];
+            frame.data = frame_data;
             given make frame in [stack]
-                of [[builtin.data].pop_end] args: [args]
+                of [[frame_data.fns].pop_end] args: [args]
             as $PodFrame:sub_frame {
                 [stack.frames].append[sub_frame];
             };
         };
-        return null;
+        return null#$PodVal?;
     }
 
     ("_") { // the identity function
@@ -609,11 +642,11 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     ("C") { // creates a constant function
         require in [stack] between [1] and [1] in [args];
         if stack.active_error {return null#$PodVal?;};
-        return PodBuiltinFn ["#C", args];
+        return PodBuiltinFn ["#C", CCaptureData [args[0]]];
     }
 
     ("#C") {
-        return builtin.data[0];
+        return [builtin.data#CCaptureData?].unwrap.val;
     }
 
     ("chr") {
@@ -757,15 +790,19 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "try",
         "fork",
 
-        "#spread",
         "mkiter",
-        "#resolve-iter",
-        "#array-iter",
         "lenp",
         "len~p",
         "car",
         "cdr",
         "both",
+        "range",
+        "count",
+        "each",
+        "for",
+        "map",
+        "filter",
+        "reduce",
 
         "not",
         "or",
@@ -783,7 +820,6 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "global",
         "set",
         "args",
-        "#args",
         "defun",
         "getfun",
         "errortype",
@@ -794,14 +830,10 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "oct",
         "hex",
         "par",
-        "#par",
         "rpar",
-        "#rpar",
         "compose",
-        "#compose",
         "_",
         "C",
-        "#C",
         "chr",
         "ord",
         "lstrip",
@@ -847,8 +879,9 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "capstatus",
         "cmdor",
     ];
+
     for Str:name in names {
-        $PodFn:fn = PodBuiltinFn [name, [$PodVal] []];
+        $PodFn:fn = PodBuiltinFn [name, null];
         register fn [fn] under [name] in [stack];
     };
 }

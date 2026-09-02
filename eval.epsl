@@ -91,9 +91,9 @@ ForkChildCtx {}
         given arg as $PodExpr:expr {
             compile expr [expr] to [instrs];
         } given arg as PodSpreadArg:spread_arg {
-            [instrs].append[LiteralVMInstr [PodBuiltinFn [
-                "#spread", [$PodVal] [PodArray [[$PodVal] []]]
-            ]]];
+            [instrs].append[LiteralVMInstr [
+                PodBuiltinFn ["#spread", null]
+            ]];
             compile expr [spread_arg.expr] to [instrs];
             [instrs].append[CallFnVMInstr [2, [W] []]];
             [spread_args].append[i];
@@ -156,7 +156,7 @@ $PodFrame?#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:a
             maybe_fn = fn;
         } else {
             return make frame in [stack]
-                of [PodBuiltinFn ["cmd", [$PodVal] []]]
+                of [PodBuiltinFn ["cmd", null]]
                 args: [[[$PodVal] [fn_val]] + [args]];
         };
     } else {
