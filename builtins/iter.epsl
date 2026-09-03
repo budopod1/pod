@@ -90,6 +90,12 @@ FilterCaptureData {
     $PodVal:fn
 }
 
+@extends BuiltinCaptureData;
+FlatCaptureData {
+    $PodVal:superiter,
+    $PodVal?:subiter
+}
+
 Bool#resolve iter [$PodVal:iter] in [PodStack:stack] {
     given iter as PodInt:int {
         return false;
@@ -717,6 +723,63 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             data.i -= 1;
             data.iter = [iter].iter_cdr;
         };
+    }
+
+    ("reverse") {
+        given frame.recieved as $PodVal:recieved {
+            [$PodVal]:elems = [recieved#PodArray?].unwrap.elems;
+            [$PodVal]:result = [$PodVal] [];
+            for $PodVal:elem in elems step -1 {
+                [result].append[elem];
+            };
+            return PodArray [result];
+        };
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if [args[0]].matches[TxtPattern []] {
+            Str:result = Str [];
+            for Byte:byte in [args[0]].get_string step -1 {
+                [result].append[byte];
+            };
+            return PodStr [result];
+        } else {
+            $PodFrame:sub_frame = make frame in [stack]
+                of [PodBuiltinFn ["#spread", null]]
+                args: [[$PodVal] [args[0]]];
+            [stack.frames].append[sub_frame];
+            return null#$PodVal?;
+        };
+    }
+
+    ("#flat") {
+        FlatCaptureData:data = [builtin.data#FlatCaptureData?].unwrap;
+        while true {
+            given data.subiter as $PodVal:subiter {
+                if resolve iter [subiter] in [stack] {return null#$PodVal?;};
+                if ![subiter].iter_lenp {
+                    data.subiter = null;
+                    continue;
+                };
+                data.subiter = [subiter].iter_cdr;
+                return PodPair [[subiter].iter_car, args[0]];
+            } else {
+                if resolve iter [data.superiter] in [stack]
+                    {return null#$PodVal?;};
+                if ![data.superiter].iter_lenp {
+                    return pod nil;
+                };
+                data.subiter = [data.superiter].iter_car;
+                data.superiter = [data.superiter].iter_cdr;
+            };
+        };
+    }
+
+    ("flat") {
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        return mkiter [PodBuiltinFn [
+            "#flat", FlatCaptureData [args[0], null]
+        ]];
     }
 
     {

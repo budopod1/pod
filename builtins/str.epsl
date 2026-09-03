@@ -235,6 +235,50 @@ $PodVal??#run str builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
     }
 
+    ("startswith") {
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:haystack = [args[0]].get_string;
+        Str:needle = [args[1]].get_string;
+        return pod bool [[haystack].starts_with[needle]];
+    }
+
+    ("endswith") {
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:haystack = [args[0]].get_string;
+        Str:needle = [args[1]].get_string;
+        return pod bool [[haystack].ends_with[needle]];
+    }
+
+    ("removeprefix") {
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:haystack = [args[0]].get_string;
+        Str:needle = [args[1]].get_string;
+        if [haystack].starts_with[needle] {
+            return PodStr [[haystack].slice_from[[needle].len]];
+        } else {
+            return args[0];
+        };
+    }
+
+    ("removesuffix") {
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:haystack = [args[0]].get_string;
+        Str:needle = [args[1]].get_string;
+        if [haystack].ends_with[needle] {
+            return PodStr [[haystack].slice[0][[haystack].len-[needle].len]];
+        } else {
+            return args[0];
+        };
+    }
+
     {
         return null;
     };

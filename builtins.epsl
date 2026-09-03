@@ -708,6 +708,8 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "every",
         "includes",
         "idx",
+        "reverse",
+        "flat",
 
         "not",
         "or",
@@ -751,6 +753,10 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "tolower",
         "lpad",
         "rpad",
+        "startswith",
+        "endswith",
+        "removeprefix",
+        "removesuffix",
 
         "print",
         "style",
