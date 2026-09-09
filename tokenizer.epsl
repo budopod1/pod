@@ -83,7 +83,7 @@ Bool#[Byte:byte].is_digit {
 }
 
 Bool#[Byte:byte].is_symbol {
-    return '!' <= byte
+    return '!' <= byte && byte != ':'
         && byte != '#' && byte != '\"'
         && byte != ';' && byte != '`'
         && byte != '(' && byte != ')'
@@ -94,7 +94,7 @@ Bool#[Byte:byte].is_symbol {
 }
 
 Bool#[Byte:byte].is_symbol_start {
-    return [byte].is_symbol && byte != ':';
+    return [byte].is_symbol;
 }
 
 Bool#[Byte:byte].is_base_id {

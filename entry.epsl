@@ -68,7 +68,7 @@ $PodVal?#check run frame [$PodFrame:frame] in [PodStack:stack] {
     return null;
 }
 
-#run program [PodFnExpr:fn_expr] from [Path:path] args: [[Str]:str_args] {
+$PodVal?#run program [PodFnExpr:fn_expr] from [Path:path] args: [[Str]:str_args] {
     PodStack:stack = make new stack;
     PodClearFn:fn = PodClearFn [fn_expr, top lexical frame in [stack]];
 
@@ -85,21 +85,25 @@ $PodVal?#check run frame [$PodFrame:frame] in [PodStack:stack] {
             "FILE", PodStr [[full_path].stringify]
         ]];
     };
-    check run frame [frame] in [stack];
+    return check run frame [frame] in [stack];
 }
 
-#run file [Path:path] args: [[Str]:str_args] {
+$PodVal?#run file [Path:path] args: [[Str]:str_args] {
     given parse file [path] as PodFnExpr:fn_expr {
-        run program [fn_expr] from [path] args: [str_args];
+        return run program [fn_expr] from [path] args: [str_args];
     } else {
         exit with status [1];
+        abort;
     };
 }
 
-#run string [Str:txt] args: [[Str]:str_args] {
+$PodVal?#run string [Str:txt] args: [[Str]:str_args] {
     Path:path = Path_from["<string>"];
     given parse txt [txt] path: [path] as PodFnExpr:fn_expr {
-        run program [fn_expr] from [path] args: [str_args];
+        return run program [fn_expr] from [path] args: [str_args];
+    } else {
+        exit with status [1];
+        abort;
     };
 }
 
@@ -190,6 +194,7 @@ $PodVal?#check run frame [$PodFrame:frame] in [PodStack:stack] {
 Z#main {
     ConfigProps:config = ConfigProps [[$ConfigProp] [
         StringProp ["exec-str"],
+        StringProp ["print-exec-str"],
         StringProp ["filename"],
         StringsProp ["args"],
     ]];
@@ -201,6 +206,8 @@ Z#main {
         optional: [true] help: ["The file to run"];
     [branch].flag[[Str] ["c"]][StringInputSource ["exec-str"]]
         help: ["Use program passed in as string"];
+    [branch].flag[[Str] ["p"]][StringInputSource ["print-exec-str"]]
+        help: ["Use program passed in as string, print the result"];
     [branch].positional[MultiStringInputSource ["args", null]]
         optional: [true] help: ["Arguments for the program"];
     
@@ -221,7 +228,18 @@ Z#main {
 
     [Str]:rest_args = [chain].get_strings["args"];
 
-    if [chain].try_get["exec-str"] {
+    if [chain].try_get["print-exec-str"] {
+        // hack to force filename arg to be treated as normal arg
+        if [chain].try_get["filename"] {
+            [rest_args].insert[0][[chain].get_string["filename"]];
+        };
+
+        given run string [[chain].get_string["print-exec-str"]]
+            args: [rest_args]
+        as $PodVal:result {
+            println[[result].get_string];
+        };
+    } elif [chain].try_get["exec-str"] {
         // hack to force filename arg to be treated as normal arg
         if [chain].try_get["filename"] {
             [rest_args].insert[0][[chain].get_string["filename"]];

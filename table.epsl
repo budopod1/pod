@@ -1,0 +1,147 @@
+%import hash;
+%import vals;
+
+L#[[$PodVal]:elems].hash_multiple {
+    // https://github.com/python/cpython/blob/3.7/Objects/tupleobject.c#L354
+    L:x = 0;
+    L:mult = 1000003;
+    L:i = [elems].len;
+    for $PodVal:elem in elems {
+        i -= 1;
+        x = ([x] ^ [[elem].hash]) * mult;
+        mult += 82520 + i + i;
+    };
+    return x;
+}
+
+L#[$PodVal:val].hash {
+    // the arbitrary numbers listed here are random prime 31 bit integers
+    given val as PodSymbol:sym {
+        return hash_string[sym.str];
+    } given val as PodStr:str {
+        return hash_string[str.val];
+    } given val as PodInt:int {
+        return hash_int64[int.val];
+    } given val as PodFloat:float {
+        return hash_double[float.val];
+    } given val as PodBool:bool {
+        if bool.val {
+            return 2039309717;
+        } else {
+            return 1722776893;
+        };
+    } given val as PodNil:nil {
+        return 1191715669;
+    } given val as PodPair:pair {
+        return [[$PodVal] [pair.car, pair.cdr]].hash_multiple;
+    } given val as PodArray:arr {
+        return [arr.elems].hash_multiple;
+    } given val as PodIter:iter {
+        return hash_struct_ptr[iter];
+    } given val as $PodOpaque:opaque {
+        return hash_struct_ptr[opaque];
+    } given val as PodError:error {
+        return hash_struct_ptr[error];
+    } given val as PodClearFn:fn {
+        return hash_struct_ptr[fn];
+    } given val as PodBuiltinFn:builtin {
+        return hash_struct_ptr[builtin];
+    } else {
+        abort;
+    };
+}
+
+PodTable#make table {
+    return PodTable [
+        0, 8, [PodPair?]*8
+    ];
+}
+
+[PodPair]#[PodTable:tbl].list_pairs {
+    [PodPair]:pairs = [PodPair] [];
+    for PodPair?:slot in tbl.slots {
+        given slot as PodPair:pair {
+            [pairs].append[pair];
+        };
+    };
+    return pairs;
+}
+
+L#[PodTable:tbl].wrap_slot_idx[L:i] {
+    return [i] & [tbl.size - 1];
+}
+
+L#[PodTable:tbl].find_slot_idx[$PodVal:key] {
+    L:i = [key].hash;
+    while true {
+        i = [tbl].wrap_slot_idx[i];
+        given tbl.slots[i] as PodPair:curr {
+            if [curr.car] equals [key] {
+                return i;
+            };
+        } else {
+            return i;
+        };
+        i += 1;
+    };
+}
+
+PodPair?#[PodTable:tbl].get_pair[$PodVal:key] {
+    L:i = [tbl].find_slot_idx[key];
+    return tbl.slots[i];
+}
+
+#[PodTable:tbl]._add_pair[PodPair:pair] {
+    L:i = [tbl].find_slot_idx[pair.car];
+    tbl.slots[i] = pair;
+}
+
+#[PodTable:tbl].resize[L:new_size] {
+    [PodPair?]:old_slots = tbl.slots;
+    tbl.slots = [PodPair?]*new_size;
+    tbl.size = new_size;
+    for PodPair?:slot in old_slots {
+        given slot as PodPair:curr {
+            [tbl]._add_pair[curr];
+        };
+    };
+}
+
+#[PodTable:tbl].put_pair[PodPair:pair] {
+    tbl.count += 1;
+    L:load_factor_inverse = 3;
+    if tbl.count * load_factor_inverse >= tbl.size {
+        [tbl].resize[tbl.size * 2];
+    };
+    [tbl]._add_pair[pair];
+}
+
+PodPair?#[PodTable:tbl].pop_pair[$PodVal:key] {
+    L:i = [tbl].find_slot_idx[key];
+    PodPair?:old_pair = tbl.slots[i];
+    if !old_pair {
+        return null;
+    };
+    tbl.slots[i] = null;
+    L:j = i;
+    while true {
+        j = [tbl].wrap_slot_idx[j+1];
+        given tbl.slots[j] as PodPair:j_slot {
+            L:k = [tbl].wrap_slot_idx[[j_slot.car].hash];
+            if i <= j {
+                if (i < k) && (k <= j) {
+                    continue;
+                };
+            } else {
+                if (k <= j) || (i < k) {
+                    continue;
+                };
+            };
+            tbl.slots[j] = null;
+            tbl.slots[i] = j_slot;
+            i = j;
+        } else {
+            return old_pair;
+        };
+    };
+}

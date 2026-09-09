@@ -1,4 +1,5 @@
 %import frames;
+%import table;
 %import eval;
 %import ast;
 
@@ -48,16 +49,18 @@ PodArray {
 }
 
 @extends PodVal;
-PodArray {
-    [$PodVal]:elems
-}
-
-@extends PodVal;
 PodIter {
     $PodVal:fn,
     Bool?:lenp,
     $PodVal?:car_val,
     $PodVal?:cdr_val,
+}
+
+@extends PodVal;
+PodTable {
+    L:count,
+    L:size,
+    [PodPair?]:slots
 }
 
 @super;
@@ -82,7 +85,6 @@ PodError {
 PodFn {}
 
 @extends PodFn;
-// 'clear' as in 'transparent', because the source can be viewed
 PodClearFn {
     PodFnExpr:src,
     $LexicalPodFrame:parent_frame
@@ -170,6 +172,8 @@ Bool#[$PodVal:val].is_truthy {
         return !!array.elems;
     } given val as PodIter:iter {
         return true;
+    } given val as PodTable:table {
+        return !!table.count;
     } given val as $PodOpaque:opaque {
         return true;
     } given val as PodError:error {
@@ -239,6 +243,13 @@ Str#[$PodVal:val].stringify {
         return "(arr{})" % elem_str;
     } given val as PodIter:iter {
         return "#iterator";
+    } given val as PodTable:table {
+        Str:elems_str = [""].clone;
+        for PodPair:pair in [table].list_pairs {
+            [elems_str].append[' '];
+            [elems_str].extend[[pair].stringify];
+        };
+        return "(tbl{})" % elems_str;
     } given val as $PodOpaque:opaque {
         return ["#"] + [opaque.type];
     } given val as PodError:error {
@@ -279,6 +290,8 @@ Str#[$PodVal:val].stringify_type {
         return "array";
     } given val as PodIter:iter {
         return "iterator";
+    } given val as PodTable:table {
+        return "table";
     } given val as $PodOpaque:opaque {
         return opaque.type;
     } given val as PodError:error {
@@ -345,7 +358,9 @@ Bool#[$PodVal:a] equals [$PodVal:b] {
             return true;
         };
         return false;
-    } given a as PodIter:iter {
+    } given a as PodIter:iter_a {
+        return a == b;
+    } given a as PodTable:table_a {
         return a == b;
     } given a as $PodOpaque:opaque_a {
         return a == b;

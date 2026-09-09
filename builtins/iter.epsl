@@ -1,45 +1,47 @@
 %import builtins.flow;
 %import pattern;
 %import frames;
+%import table;
 %import eval;
 %import vals;
 
 @extends BuiltinFrameData;
-SpreadBuiltinFrameData {
+SpreadFrameData {
+    $PodVal:iter,
     [$PodVal]:elems
 }
 
 @extends BuiltinFrameData;
-LenBuiltinFrameData {
+LenFrameData {
     $PodVal:iter,
-    Z64:count
+    L:count
 }
 
-@extends LoopBuiltinFrameData;
-EachBuiltinFrameData {
+@extends LoopFrameData;
+EachFrameData {
     [$PodVal]:iters,
     $PodVal:body,
     Bool:ran_body,
     [$PodVal]:result
 }
 
-@extends LoopBuiltinFrameData;
-ForBuiltinFrameData {
+@extends LoopFrameData;
+ForFrameData {
     $PodVal:iter,
     $PodVal:body,
     $PodVal?:else_
 }
 
 @extends BuiltinFrameData;
-MapBuiltinFrameData {}
+MapFrameData {}
 
 @extends BuiltinFrameData;
-FilterBuiltinFrameData {
+FilterFrameData {
     $PodVal?:tested_car
 }
 
 @extends BuiltinFrameData;
-ReduceBuiltinFrameData {
+ReduceFrameData {
     $PodVal:iter,
     $PodVal:fn,
     $PodVal?:last,
@@ -47,22 +49,34 @@ ReduceBuiltinFrameData {
 }
 
 @extends BuiltinFrameData;
-EveryBuiltinFrameData {
+EveryFrameData {
     $PodVal:iter,
     $PodVal?:fn,
     Bool:ran_fn
 }
 
 @extends BuiltinFrameData;
-IncludesBuiltinFrameData {
+IncludesFrameData {
     $PodVal:haystack,
     $PodVal:needle
 }
 
 @extends BuiltinFrameData;
-IdxBuiltinFrameData {
+AtFrameData {
     $PodVal:iter,
-    L:i
+    Z64:Zi,
+    L?:i,
+    SpreadFrameData?:spread_data
+}
+
+@extends BuiltinFrameData;
+AtSliceFrameData {
+    $PodVal:iter,
+    IdxSlice:slice,
+    AtFrameData?:start_at_data,
+    AtFrameData?:end_at_data,
+    L:offset,
+    [$PodVal]:elems
 }
 
 @extends BuiltinCaptureData;
@@ -91,9 +105,22 @@ FilterCaptureData {
 }
 
 @extends BuiltinCaptureData;
+SelectCaptureData {
+    $PodVal:src,
+    $PodVal:selector,
+    $PodVal?:prev_iter,
+    L?:prev_idx
+}
+
+@extends BuiltinCaptureData;
 FlatCaptureData {
     $PodVal:superiter,
     $PodVal?:subiter
+}
+
+IdxSlice {
+    Z64:start,
+    Z64?:end
 }
 
 Bool#resolve iter [$PodVal:iter] in [PodStack:stack] {
@@ -188,17 +215,57 @@ $PodVal#[$PodVal:iter].iter_cdr {
     };
 }
 
+PodArray?#spread [SpreadFrameData:data] in [PodStack:stack] {
+    $PodVal:iter = data.iter;
+    given iter as PodArray:iter_arr {
+        return iter_arr;
+    };
+    while true {
+        if resolve iter [iter] in [stack] {return null;};
+        if [iter].iter_lenp {
+            [data.elems].append[[iter].iter_car];
+            iter = [iter].iter_cdr;
+            data.iter = iter;
+        } else {
+            return PodArray [data.elems];
+        };
+        if resolve iter [iter] in [stack] {return null;};
+    };
+}
+
+L?#length [LenFrameData:data] in [PodStack:stack] {
+    while true {
+        $PodVal:iter = data.iter;
+        given iter as PodInt:int {
+            if int.val >= 1 {
+                return data.count + int.val#L;
+            } else {
+                return data.count;
+            };
+        } given iter as PodArray:arr {
+            return data.count + [arr.elems].len;
+        };
+        if resolve iter [iter] in [stack] {return null;};
+        if ![iter].iter_lenp {
+            return data.count;
+        };
+        data.iter = [iter].iter_cdr;
+        data.count += 1;
+        if check interrupt in [stack] {return null;};
+    };
+}
+
 $PodVal??#iter cond builtin [BuiltinPodFrame:frame] in [PodStack:stack] every: [Bool:every] {
-    EveryBuiltinFrameData?:maybe_data = null;
-    given frame.data as EveryBuiltinFrameData:known_data {
+    EveryFrameData?:maybe_data = null;
+    given frame.data as EveryFrameData:known_data {
         maybe_data = known_data;
     } else {
         [$PodVal]:args = frame.arg_vals;
         require in [stack] between [1] and [2] in [args];
         if stack.active_error {return null#$PodVal?;};
-        maybe_data = EveryBuiltinFrameData [args[0], args[1]?, false];
+        maybe_data = EveryFrameData [args[0], args[1]?, false];
     };
-    EveryBuiltinFrameData:data = [maybe_data].unwrap;
+    EveryFrameData:data = [maybe_data].unwrap;
     if data.ran_fn {
         Bool:truth = [[frame.recieved].unwrap].is_truthy;
         if every != truth {
@@ -228,33 +295,248 @@ $PodVal??#iter cond builtin [BuiltinPodFrame:frame] in [PodStack:stack] every: [
                 return pod bool [truth];
             };
         };
+        if check interrupt in [stack] {return null#$PodVal?;};
     };
-} 
+}
+
+IdxSlice?#parse slice [[$PodVal]:args] from [L:i] in [PodStack:stack] {
+    Z64:start = 0;
+    Z64?:end = null;
+    $Pattern:dash_pattern = ExactSymbolPattern["-"];
+    if [args[i]].matches[dash_pattern] {
+        require in [stack] [args[i+1]] matches [IntPattern []];
+        require in [stack] between [2+i] and [2+i] in [args];
+        if stack.active_error {return null;};
+        return IdxSlice [0, [args[i+1]] as int];
+    } else {
+        require in [stack] [args[i]] matches [IntPattern []];
+        require in [stack] [args[i+1]] matches [dash_pattern];
+        require in [stack] between [2+i] and [3+i] in [args];
+        if stack.active_error {return null;};
+        Z64:from = [args[i]] as int;
+        if [args].len >= 3+i {
+            require in [stack] [args[i+2]] matches [IntPattern []];
+            if stack.active_error {return null;};
+            return IdxSlice [from, [args[i+2]] as int];
+        } else {
+            return IdxSlice [from, null];
+        };
+    };
+}
+
+$PodVal?#init at [BuiltinPodFrame:frame] in [PodStack:stack] args: [[$PodVal]:args] {
+    require in [stack] between [2] and [null] in [args];
+    if stack.active_error {return null;};
+    $PodVal:idxed = args[0];
+    given idxed as PodTable:tbl {
+        require in [stack] between [2] and [2] in [args];
+        if stack.active_error {return null;};
+        given [tbl].get_pair[args[1]] as PodPair:pair {
+            return pair.cdr;
+        } else {
+            [stack].error["key"]["Key not found in table"];
+            return null;
+        };
+    };
+    if [args].len >= 3 {
+        IdxSlice?:maybe_slice = parse slice [args] from [1] in [stack];
+        if [maybe_slice].is_null {
+            return null;
+        };
+        IdxSlice:slice = [maybe_slice].unwrap;
+        frame.data = AtSliceFrameData [
+            idxed, slice, null, null, 0, [$PodVal] []
+        ];
+    } else {
+        require in [stack] [args[1]?] matches [IntPattern []];
+        if stack.active_error {return null;};
+        Z64:Zi = [args[1]] as int;
+        frame.data = AtFrameData [idxed, Zi, null, null];
+    };
+    return null;
+}
+
+Bool#resolve at idx [AtFrameData:data] in [PodStack:stack] {
+    while !data.i {
+        if data.Zi >= 0 {
+            data.i = data.Zi#L;
+            break;
+        };
+        given data.iter as PodArray:arr {
+            data.i = data.Zi#L + [arr.elems].len;
+            break;
+        };
+        if !data.spread_data {
+            data.spread_data = SpreadFrameData [data.iter, [$PodVal] []];
+        };
+        SpreadFrameData:spread_data
+            = [data.spread_data#SpreadFrameData?].unwrap;
+        given spread [spread_data] in [stack] as PodArray:arr {
+            data.iter = arr;
+            continue;
+        } else {
+            return true;
+        };
+    };
+    return false;
+}
+
+$PodVal?#at [AtFrameData:data] in [PodStack:stack] {
+    if [data.iter].matches[TxtPattern []] {
+        Str:str = [data.iter].get_string;
+        Z64:Zi = data.Zi;
+        if Zi < 0 {
+            Zi += [str].len;
+        };
+        if Zi < 0 || Zi >= [str].len {
+            [stack].error["key"]["Index out of range"];
+            return null;
+        };
+        return PodStr [Str [str[Zi]]];
+    };
+
+    if resolve at idx [data] in [stack] {return null;};
+
+    while true {
+        $PodVal:iter = data.iter;
+        L:i = [data.i].unwrap;
+        given iter as PodArray:arr {
+            given arr.elems[i]? as $PodVal:elem {
+                return elem;
+            } else {
+                [stack].error["key"]["Index out of range"];
+                return null#$PodVal?;
+            };
+        };
+        if resolve iter [iter] in [stack] {return null#$PodVal?;};
+        if ![iter].iter_lenp {
+            [stack].error["key"]["Index out of range"];
+            return null#$PodVal?;
+        };
+        if i == 0 {
+            return [iter].iter_car;
+        };
+        data.i = i-1;
+        data.iter = [iter].iter_cdr;
+        if check interrupt in [stack] {return null#$PodVal?;};
+    };
+}
+
+$PodVal?#at slice [AtSliceFrameData:data] in [PodStack:stack] {
+    if [data.iter].matches[TxtPattern []] {
+        Str:str = [data.iter].get_string;
+        Z64:start = data.slice.start;
+        if start < 0 {
+            start += [str].len;
+        };
+        if start < 0 || start > [str].len {
+            [stack].error["key"]["Index out of range"];
+            return null;
+        };
+        Z64:end = [str].len;
+        given data.slice.end as Z64:slice_end {
+            if slice_end < 0 {
+                end += slice_end;
+            } else {
+                end = slice_end;
+            };
+            if end < 0 || end > [str].len {
+                [stack].error["key"]["Index out of range"];
+                return null;
+            };
+        };
+        if end < start {
+            return PodStr [""];
+        };
+        return PodStr [[str].slice[start#L][end#L]];
+    };
+
+    if !data.start_at_data {
+        data.start_at_data = AtFrameData [
+            data.iter, data.slice.start, null, null
+        ];
+    };
+    AtFrameData:start_at_data = [data.start_at_data].unwrap;
+    if !start_at_data.i {
+        if resolve at idx [start_at_data] in [stack] {return null;};
+        data.iter = start_at_data.iter;
+    };
+    L:start_i = [start_at_data.i].unwrap;
+
+    L?:maybe_end_i = null;
+    given data.slice.end as Z64:slice_end {
+        if !data.end_at_data {
+            data.end_at_data = AtFrameData [
+                data.iter, slice_end, null, null
+            ];
+        };
+        AtFrameData:end_at_data = [data.end_at_data].unwrap;
+        if !end_at_data.i {
+            if resolve at idx [end_at_data] in [stack] {return null;};
+            data.iter = end_at_data.iter;
+            if start_i > [end_at_data.i].unwrap {
+                [stack].error["key"]["Slice start must not be after end"];
+                return null#$PodVal?;
+            };
+        };
+        maybe_end_i = end_at_data.i;
+    };
+
+    given data.iter as PodArray:arr {
+        given maybe_end_i as L:end_i {
+            if end_i > [arr.elems].len {
+                [stack].error["key"]["End index out of range"];
+                return null#$PodVal?;
+            };
+            return PodArray [[arr.elems].slice[start_i][end_i]];
+        } else {
+            if start_i > [arr.elems].len {
+                [stack].error["key"]["Start index out of range"];
+                return null#$PodVal?;
+            };
+            return PodArray [[arr.elems].slice_from[start_i]];
+        };
+    };
+
+    while true {
+        $PodVal:iter = data.iter;
+        L:offset = data.offset;
+        given maybe_end_i as L:end_i {
+            if end_i == offset {
+                return PodArray [data.elems];
+            };
+        };
+        if resolve iter [iter] in [stack] {return null#$PodVal?;};
+        if ![iter].iter_lenp {
+            if maybe_end_i {
+                [stack].error["key"]["End index out of range"];
+                return null#$PodVal?;
+            } else {
+                return PodArray [data.elems];
+            };
+        };
+        if offset >= start_i {
+            [data.elems].append[[iter].iter_car];
+        };
+        data.offset = offset + 1;
+        data.iter = [iter].iter_cdr;
+        if check interrupt in [stack] {return null#$PodVal?;};
+    };
+}
 
 $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     PodBuiltinFn:builtin = frame.builtin;
     [$PodVal]:args = frame.arg_vals;
     switch builtin.name
     ("#spread") {
-        $PodVal:iter = args[0];
-        given iter as PodArray:iter_arr {
-            return iter_arr;
+        if !frame.data {
+            frame.data = SpreadFrameData [args[0], [$PodVal] []];
         };
-        [$PodVal]:elems = [$PodVal] [];
-        given frame.data as SpreadBuiltinFrameData:frame_data {
-            elems = frame_data.elems;
+        SpreadFrameData:data = [frame.data#SpreadFrameData?].unwrap;
+        given spread [data] in [stack] as PodArray:arr {
+            return arr;
         } else {
-            frame.data = SpreadBuiltinFrameData [elems];
-        };
-        while true {
-            if resolve iter [iter] in [stack] {return null#$PodVal?;};
-            if [iter].iter_lenp {
-                [elems].append[[iter].iter_car];
-                iter = [iter].iter_cdr;
-                args[0] = iter;
-            } else {
-                return PodArray [elems];
-            };
+            return null#$PodVal?;
         };
     }
 
@@ -319,32 +601,19 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("len") {
-        LenBuiltinFrameData?:maybe_data = null;
-        given frame.data as LenBuiltinFrameData:known_data {
-            maybe_data = known_data;
-        } else {
+        if !frame.data {
             require in [stack] between [1] and [1] in [args];
             if stack.active_error {return null#$PodVal?;};
             if [args[0]].matches[TxtPattern []] {
                 return PodInt [[[args[0]].get_string].len];
             };
-            maybe_data = LenBuiltinFrameData [args[0], 0];
+            frame.data = LenFrameData [args[0], 0];
         };
-        LenBuiltinFrameData:data = [maybe_data].unwrap;
-        frame.data = data;
-        while true {
-            $PodVal:iter = data.iter;
-            given iter as PodInt:int {
-                return PodInt [data.count + int.val];
-            } given iter as PodArray:arr {
-                return PodInt [data.count + [arr.elems].len];
-            };
-            if resolve iter [iter] in [stack] {return null#$PodVal?;};
-            if ![iter].iter_lenp {
-                return PodInt [data.count];
-            };
-            data.iter = [iter].iter_cdr;
-            data.count += 1;
+        LenFrameData:data = [frame.data#LenFrameData?].unwrap;
+        given length [data] in [stack] as L:len {
+            return PodInt [len];
+        } else {
+            return null#$PodVal?;
         };
     }
 
@@ -430,7 +699,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("each") {
-        given frame.data as EachBuiltinFrameData:data {
+        given frame.data as EachFrameData:data {
             if data.ran_body {
                 data.ran_body = false;
                 if data.break_requested {
@@ -463,7 +732,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         if stack.active_error {return null#$PodVal?;};
         [$PodVal]:iters = [args].slice[0][[args].len - 1];
         $PodVal:body = [args].at[-1];
-        frame.data = EachBuiltinFrameData [
+        frame.data = EachFrameData [
             false, false,
             iters, body, false, [$PodVal] []
         ];
@@ -471,7 +740,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("for") {
-        given frame.data as ForBuiltinFrameData:data {
+        given frame.data as ForFrameData:data {
             if data.break_requested {
                 return [frame.recieved].unwrap;
             };
@@ -509,7 +778,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
             };
             maybe_else = args[3];
         };
-        frame.data = ForBuiltinFrameData [
+        frame.data = ForFrameData [
             false, false,
             args[0], args[1], maybe_else
         ];
@@ -517,7 +786,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("#map") {
-        given frame.data as MapBuiltinFrameData:frame_data {
+        given frame.data as MapFrameData:frame_data {
             // frame data is only set once the mapping function is ran
             return PodPair [[frame.recieved].unwrap, args[0]];
         };
@@ -538,7 +807,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         as $PodFrame:sub_frame {
             [stack.frames].append[sub_frame];
         };
-        frame.data = MapBuiltinFrameData [];
+        frame.data = MapFrameData [];
         return null#$PodVal?;
     }
 
@@ -553,7 +822,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("#filter") {
-        given frame.data as FilterBuiltinFrameData:frame_data {
+        given frame.data as FilterFrameData:frame_data {
             given frame_data.tested_car as $PodVal:result_car {
                 if [[frame.recieved].unwrap].is_truthy {
                     return PodPair [result_car, args[0]];
@@ -570,7 +839,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         cap_data.iter = [iter].iter_cdr;
         $PodVal:car = [iter].iter_car;
-        frame.data = FilterBuiltinFrameData [car];
+        frame.data = FilterFrameData [car];
         given make frame in [stack] of [cap_data.fn] args: [[$PodVal] [car]]
         as $PodFrame:sub_frame {
             [stack.frames].append[sub_frame];
@@ -589,7 +858,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("reduce") {
-        given frame.data as ReduceBuiltinFrameData:data {
+        given frame.data as ReduceFrameData:data {
             if data.ran_body {
                 data.last = [frame.recieved].unwrap;
             };
@@ -623,7 +892,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         };
         require in [stack] between [2] and [3] in [args];
         if stack.active_error {return null#$PodVal?;};
-        frame.data = ReduceBuiltinFrameData [
+        frame.data = ReduceFrameData [
             args[0], args[1], args[2]?, false
         ];
         return null#$PodVal?;
@@ -638,8 +907,8 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("includes") {
-        IncludesBuiltinFrameData?:maybe_data = null;
-        given frame.data as IncludesBuiltinFrameData:known_data {
+        IncludesFrameData?:maybe_data = null;
+        given frame.data as IncludesFrameData:known_data {
             maybe_data = known_data;
         } else {
             require in [stack] between [2] and [2] in [args];
@@ -651,9 +920,9 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
                 Str:needle = [args[1]].get_string;
                 return pod bool[!![haystack].index_of[needle]];
             };
-            maybe_data = IncludesBuiltinFrameData [args[0], args[1]];
+            maybe_data = IncludesFrameData [args[0], args[1]];
         };
-        IncludesBuiltinFrameData:data = [maybe_data].unwrap;
+        IncludesFrameData:data = [maybe_data].unwrap;
         frame.data = data;
         while true {
             $PodVal:iter = data.haystack;
@@ -672,81 +941,117 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
                 return pod bool [true];
             };
             data.haystack = [iter].iter_cdr;
+            if check interrupt in [stack] {return null#$PodVal?;};
         };
     }
 
-    ("idx") {
-        IdxBuiltinFrameData?:maybe_data = null;
-        given frame.data as IdxBuiltinFrameData:known_data {
-            maybe_data = known_data;
-        } else {
-            require in [stack] between [2] and [2] in [args];
-            require in [stack] [args[1]?] matches [IntPattern []];
+    ("@") {
+        if !frame.data {
+            given init at [frame] in [stack] args: [args]
+            as $PodVal:immediate_result {
+                return immediate_result;
+            };
             if stack.active_error {return null#$PodVal?;};
-            Z64:signed_i = [args[1]] as int;
-            if signed_i < 0 {
-                [stack].error["idx"]["Index must be nonnegative"];
+        };
+
+        given frame.data as AtFrameData:at_data {
+            given at [at_data] in [stack] as $PodVal:result {
+                return result;
+            };
+        } given frame.data as AtSliceFrameData:at_slice_data {
+            given at slice [at_slice_data] in [stack] as $PodVal:result {
+                return result;
+            };
+        } else {
+            abort;
+        };
+        return null#$PodVal?;
+    }
+
+    ("#select") {
+        SelectCaptureData:cap_data
+            = [builtin.data#SelectCaptureData?].unwrap;
+
+        given frame.data as AtFrameData:at_data {
+            given at [at_data] in [stack] as $PodVal:result {
+                if cap_data.prev_idx {
+                    cap_data.prev_iter = at_data.iter;
+                };
+                return PodPair [result, args[0]];
+            } else {
                 return null#$PodVal?;
             };
-            L:i = signed_i#L;
-            if [args[0]].matches[TxtPattern []] {
-                Str:str = [args[0]].get_string;
-                given str[i]? as Byte:byte {
-                    return PodStr [Str [byte]];
-                } else {
-                    [stack].error["idx"]["Index out of range"];
-                    return null#$PodVal?;
-                };
-            };
-            maybe_data = IdxBuiltinFrameData [args[0], i];
         };
-        IdxBuiltinFrameData:data = [maybe_data].unwrap;
-        frame.data = data;
-        while true {
-            $PodVal:iter = data.iter;
-            given iter as PodArray:arr {
-                given arr.elems[data.i]? as $PodVal:elem {
-                    return elem;
-                } else {
-                    [stack].error["idx"]["Index out of range"];
-                    return null#$PodVal?;
-                };
-            };
-            if resolve iter [iter] in [stack] {return null#$PodVal?;};
-            if ![iter].iter_lenp {
-                [stack].error["idx"]["Index out of range"];
+
+        $PodVal:selector = cap_data.selector;
+        if resolve iter [selector] in [stack] {return null#$PodVal?;};
+        if ![selector].iter_lenp {
+            return pod nil;
+        };
+        cap_data.selector = [selector].iter_cdr;
+        $PodVal:key = [selector].iter_car;
+        given cap_data.src as PodTable:tbl {
+            given [tbl].get_pair[key] as PodPair:pair {
+                return PodPair [pair.cdr, args[0]];
+            } else {
+                [stack].error["key"]["Key not found in table"];
                 return null#$PodVal?;
             };
-            if data.i == 0 {
-                return [iter].iter_car;
-            };
-            data.i -= 1;
-            data.iter = [iter].iter_cdr;
         };
+        given key as PodInt:key_int {
+            $PodVal:src_iter = cap_data.src;
+            Z64:idx = key_int.val;
+            AtFrameData:at_data = AtFrameData [
+                cap_data.src, idx, null, null
+            ];
+            frame.data = at_data;
+            given cap_data.prev_idx as L:prev_idx {
+                if idx >= prev_idx {
+                    at_data.iter = [cap_data.prev_iter].unwrap;
+                    at_data.Zi -= prev_idx;
+                };
+            };
+            if idx > 0 {
+                cap_data.prev_idx = idx#L;
+            } else {
+                cap_data.prev_idx = null;
+            };
+        } else {
+            [stack].error["key"]["Key must be integer"];
+        };
+        return null#$PodVal?;
+    }
+
+    ("select") {
+        require in [stack] between [2] and [2] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        return mkiter [PodBuiltinFn [
+            "#select", SelectCaptureData [args[0], args[1], null, null]
+        ]];
     }
 
     ("reverse") {
-        given frame.recieved as $PodVal:recieved {
-            [$PodVal]:elems = [recieved#PodArray?].unwrap.elems;
+        if !frame.data {
+            require in [stack] between [1] and [1] in [args];
+            if stack.active_error {return null#$PodVal?;};
+            if [args[0]].matches[TxtPattern []] {
+                Str:result = Str [];
+                for Byte:byte in [args[0]].get_string step -1 {
+                    [result].append[byte];
+                };
+                return PodStr [result];
+            } else {
+                frame.data = SpreadFrameData [args[0], [$PodVal] []];
+            };
+        };
+        SpreadFrameData:data = [frame.data#SpreadFrameData?].unwrap;
+        given spread [data] in [stack] as PodArray:arr {
             [$PodVal]:result = [$PodVal] [];
-            for $PodVal:elem in elems step -1 {
+            for $PodVal:elem in arr.elems step -1 {
                 [result].append[elem];
             };
             return PodArray [result];
-        };
-        require in [stack] between [1] and [1] in [args];
-        if stack.active_error {return null#$PodVal?;};
-        if [args[0]].matches[TxtPattern []] {
-            Str:result = Str [];
-            for Byte:byte in [args[0]].get_string step -1 {
-                [result].append[byte];
-            };
-            return PodStr [result];
         } else {
-            $PodFrame:sub_frame = make frame in [stack]
-                of [PodBuiltinFn ["#spread", null]]
-                args: [[$PodVal] [args[0]]];
-            [stack.frames].append[sub_frame];
             return null#$PodVal?;
         };
     }
@@ -771,6 +1076,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
                 data.subiter = [data.superiter].iter_car;
                 data.superiter = [data.superiter].iter_cdr;
             };
+            if check interrupt in [stack] {return null#$PodVal?;};
         };
     }
 

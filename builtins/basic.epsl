@@ -33,12 +33,18 @@ $PodVal??#run basic builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         if stack.active_error {return null#$PodVal?;};
         if [args].all_match[IntPattern []] {
             Z64:x = [args[0]] as int;
+            if [args].len == 1 {
+                return PodInt [-x];
+            };
             for $PodVal:arg in args from 1 {
                 x -= [arg] as int;
             };
             return PodInt [x];
         } else {
             R:x = [args[0]] as float;
+            if [args].len == 1 {
+                return PodFloat [-x];
+            };
             for $PodVal:arg in args from 1 {
                 x -= [arg] as float;
             };

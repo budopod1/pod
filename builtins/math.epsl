@@ -1,0 +1,236 @@
+%import pattern;
+%import frames;
+%import math;
+%import eval;
+%import vals;
+
+PodStr?#base [W:base] convert builtin [[$PodVal]:args] in [PodStack:stack] prefix: [Str:prefix] {
+    if base > 16 {
+        abort ["Expected base 16 or less, not {}" % base];
+    };
+
+    require in [stack] between [1] and [1] in [args];
+    require in [stack] [args[0]?] matches [IntPattern []];
+    if stack.active_error {return null;};
+
+    Z64:number = [args[0]] as int;
+    Bool:is_negative = number < 0;
+    if is_negative {
+        number *= -1;
+    };
+
+    Str:digits = [""].clone;
+    while number {
+        W:digit_n = (number % base)#W32;
+        [digits].append["0123456789abcdef"[digit_n]];
+        number = number ~/ base;
+    };
+
+    Str:result = [""].clone;
+    if is_negative {
+        [result].append['-'];
+    };
+    [result].extend[prefix];
+    for Byte:digit in digits step -1 {
+        [result].append[digit];
+    };
+    return PodStr [result];
+}
+
+$PodVal??#run math builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("round") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [NumberPattern []];
+        require in [stack] [args[1]?] matches [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        if [args].len >= 2 {
+            Z64:digits = [args[1]] as int;
+            if digits <= 0 {
+                Z64:multiplier = 10 ** (-digits)#L;
+                R:scaled = [args[0]] as float / multiplier;
+                return PodInt [[scaled].round * multiplier];
+            } else {
+                R:multiplier = 10.0 ** digits;
+                R:scaled = [args[0]] as float * multiplier;
+                return PodFloat [[scaled].round / multiplier];
+            };
+        } else {
+            return PodInt [[[args[0]] as float].round];
+        };
+    }
+    
+    ("ceil") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return PodInt [[[args[0]] as float].ceil];
+    }
+    
+    ("floor") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return PodInt [[[args[0]] as float].floor];
+    }
+    
+    ("log") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        R:arg = [args[0]] as float;
+        R:base = e;
+        if [args].len >= 2 {
+            base = [args[1]] as float;
+        };
+        return PodFloat [log[arg][base]];
+    }
+
+    ("infp") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return pod bool [is_infinite[[args[0]] as float]];
+    }
+
+    ("finitep") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return pod bool [is_finite[[args[0]] as float]];
+    }
+
+    ("abs") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        if [args[0]].matches[IntPattern []] {
+            Z64:val = [args[0]] as int;
+            return PodInt [|[val]|];
+        } else {
+            R:val = [args[0]] as float;
+            return PodFloat [|[val]|];
+        };
+    }
+
+    ("sin") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return PodFloat [sin[[args[0]] as float]];
+    }
+
+    ("cos") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return PodFloat [cos[[args[0]] as float]];
+    }
+
+    ("tan") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return PodFloat [tan[[args[0]] as float]];
+    }
+
+    ("asin") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return PodFloat [asin[[args[0]] as float]];
+    }
+
+    ("acos") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return PodFloat [acos[[args[0]] as float]];
+    }
+
+    ("atan") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        if [args].len >= 2 {
+            return PodFloat [atan[[args[0]] as float][[args[1]] as float]];
+        } else {
+            return PodFloat [atan[[args[0]] as float]];
+        };
+    }
+
+    ("Band") {
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Z64:x = ~[0#Z64];
+        for $PodVal:arg in args {
+            x = [x] & [[arg] as int];
+        };
+        return PodInt [x];
+    }
+
+    ("Bor") {
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Z64:x = 0;
+        for $PodVal:arg in args {
+            x = [x] | [[arg] as int];
+        };
+        return PodInt [x];
+    }
+
+    ("Bxor") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        if [args].len == 1 {
+            return PodInt[~[[args[0]] as int]];
+        } else {
+            Z64:x = 0;
+            for $PodVal:arg in args {
+                x = [x] ^ [[arg] as int];
+            };
+            return PodInt [x];
+        };
+    }
+
+    ("<<") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Z64:x = [args[0]] as int;
+        for $PodVal:arg in args from 1 {
+            x = [x] << [[arg] as int];
+        };
+        return PodInt [x];
+    }
+
+    (">>") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Z64:x = [args[0]] as int;
+        for $PodVal:arg in args from 1 {
+            x = [x] >> [[arg] as int];
+        };
+        return PodInt [x];
+    }
+
+    ("bin") {
+        return base [2] convert builtin [args] in [stack] prefix: ["0b"];
+    }
+
+    ("oct") {
+        return base [8] convert builtin [args] in [stack] prefix: ["0o"];
+    }
+
+    ("hex") {
+        return base [16] convert builtin [args] in [stack] prefix: ["0x"];
+    }
+
+    {
+        return null;
+    };
+}

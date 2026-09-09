@@ -1,0 +1,555 @@
+%import pattern;
+%import frames;
+%import eval;
+%import vals;
+
+@extends BuiltinFrameData;
+ComposeFrameData {
+    [$PodVal]:fns
+}
+
+@extends BuiltinFrameData;
+InplaceSetFrameData {
+    Str:name,
+    $PodVal:og_val
+}
+
+@extends BuiltinCaptureData;
+ArgsCaptureData {
+    [$PodVal]:name_vals,
+    $PodVal:fn
+}
+
+@extends BuiltinCaptureData;
+ParCaptureData {
+    $PodVal:fn,
+    [$PodVal]:args
+}
+
+@extends BuiltinCaptureData;
+ComposeCaptureData {
+    [$PodVal]:fns
+}
+
+@extends BuiltinCaptureData;
+CCaptureData {
+    $PodVal:val
+}
+
+#set vars [[Str]:var_names] of [$LexicalPodFrame:frame] in [PodStack:stack] to [[$PodVal]:vals] exact: [Bool:exact] {
+    Str?:maybe_spread_name = null;
+    [Str]:pre_spread_names = [Str] [];
+    [Str]:post_spread_names = [Str] [];
+    L:required_val_count = 0;
+
+    for Str:name in var_names {
+        if [name].len == 0 {
+            [stack].error["arg"]["Cannot assign to empty symbol"];
+            return;
+        } elif name[0] == '*' {
+            if maybe_spread_name {
+                [stack].error["arg"]["Cannot have multiple spread assignees"];
+                return;
+            };
+            maybe_spread_name = [name].slice_from[1];
+            continue;
+        };
+        if [name].at[-1] != '?' {
+            required_val_count += 1;
+        };
+        if maybe_spread_name {
+            [post_spread_names].append[name];
+        } else {
+            [pre_spread_names].append[name];
+        };
+    };
+    
+    Z:optional_val_count = [vals].len#Z - (required_val_count#Z);
+    if optional_val_count < 0 {
+        [stack].error["arg"]["Not enough values for all assignees"];
+        return;
+    };
+
+    L:val_idx = 0;
+
+    for Str:name in pre_spread_names {
+        if [name].at[-1] == '?' {
+            $PodVal:val = pod nil;
+            if optional_val_count > 0 {
+                val = vals[val_idx];
+                val_idx += 1;
+                optional_val_count -= 1;
+            };
+            set var [[name].slice[0][[name].len-1]]
+                in [frame]
+                to [val];
+        } else {
+            set var [name]
+                in [frame]
+                to [vals[val_idx]];
+            val_idx += 1;
+        };
+    };
+
+    for Str:name in post_spread_names step -1 {
+        if [name].at[-1] == '?' {
+            $PodVal:val = pod nil;
+            if optional_val_count > 0 {
+                val = [vals].pop_end;
+                optional_val_count -= 1;
+            };
+            set var [[name].slice[0][[name].len-1]]
+                in [frame]
+                to [val];
+        } else {
+            set var [name]
+                in [frame]
+                to [[vals].pop_end];
+        };
+    };
+
+    given maybe_spread_name as Str:spread_name {
+        set var [spread_name]
+            in [frame]
+            to [PodArray [[vals].slice_from[val_idx]]];
+    } else {
+        if [vals].len > val_idx {
+            [stack].error["arg"]["Too many values for given assignees"];
+            return;
+        };
+    };
+}
+
+$PodVal??#run misc builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: [$LexicalPodFrame:lexical_frame] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("not") {
+        return pod bool [![args[0]].is_truthy];
+    }
+
+    ("or") {
+        $PodVal:last = pod bool [false];
+        given frame.recieved as $PodVal:recieved {
+            if [recieved].is_truthy {
+                return recieved;
+            };
+            last = recieved;
+        };
+        if args {
+            given make frame in [stack]
+                of [[args].pop[0]] args: [[$PodVal] []]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+            return null;
+        } else {
+            return last;
+        };
+    }
+
+    ("and") {
+        $PodVal:last = pod bool [true];
+        given frame.recieved as $PodVal:recieved {
+            if ![recieved].is_truthy {
+                return recieved;
+            };
+            last = recieved;
+        };
+        if args {
+            given make frame in [stack]
+                of [[args].pop[0]] args: [[$PodVal] []]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+            return null;
+        } else {
+            return last;
+        };
+    }
+
+    ("any") {
+        $PodVal:last = pod bool [false];
+        for $PodVal:val in args {
+            if [val].is_truthy {
+                return val;
+            };
+            last = val;
+        };
+        return last;
+    }
+
+    ("all") {
+        $PodVal:last = pod bool [true];
+        for $PodVal:val in args {
+            if ![val].is_truthy {
+                return val;
+            };
+            last = val;
+        };
+        return last;
+    }
+
+    ("min") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        if [args].all_match[IntPattern []] {
+            Z64:min = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:x = [arg] as int;
+                if x < min {
+                    min = x;
+                };
+            };
+            return PodInt [min];
+        } else {
+            R:min = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:x = [arg] as float;
+                if x < min {
+                    min = x;
+                };
+            };
+            return PodFloat [min];
+        };
+    }
+
+    ("max") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [NumberPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        if [args].all_match[IntPattern []] {
+            Z64:max = [args[0]] as int;
+            for $PodVal:arg in args from 1 {
+                Z64:x = [arg] as int;
+                if x > max {
+                    max = x;
+                };
+            };
+            return PodInt [max];
+        } else {
+            R:max = [args[0]] as float;
+            for $PodVal:arg in args from 1 {
+                R:x = [arg] as float;
+                if x > max {
+                    max = x;
+                };
+            };
+            return PodFloat [max];
+        };
+    }
+
+    ("!") {
+        lexical_frame.important = true;
+        if args {
+            lexical_frame.label = [args[0]].get_string;
+        };
+        return pod nil;
+    }
+
+    ("declare") {
+        require in [stack] [args] all match [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        for $PodVal:arg in args {
+            Str:name = [args[0]#PodSymbol?].unwrap.str;
+            set local var [name] in [lexical_frame] to [pod nil];
+        };
+        return pod nil;
+    }
+
+    ("assign") {
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args[0]?] matches [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:name = [args[0]#PodSymbol?].unwrap.str;
+        $PodVal:val = args[1]; 
+        set var [name] in [lexical_frame] to [val];
+        return val;
+    }
+
+    ("pre") {
+        given frame.data as InplaceSetFrameData:data {
+            $PodVal:new_val = [frame.recieved].unwrap;
+            set var [data.name] in [lexical_frame] to [new_val];
+            return new_val;
+        };
+        require in [stack] between [2] and [null] in [args];
+        require in [stack] [args[0]?] matches [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:name = [args[0]#PodSymbol?].unwrap.str;
+        given lookup [name] in [lexical_frame] in [stack] as $PodVal:og_val {
+            frame.data = InplaceSetFrameData [
+                name, og_val
+            ];
+            given make frame in [stack] of [args[1]]
+                args: [[[$PodVal] [og_val]] + [[args].slice_from[2]]]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+        };
+        return null#$PodVal?;
+    }
+
+    ("post") {
+        given frame.data as InplaceSetFrameData:data {
+            $PodVal:new_val = [frame.recieved].unwrap;
+            set var [data.name] in [lexical_frame] to [new_val];
+            return data.og_val;
+        };
+        require in [stack] between [2] and [null] in [args];
+        require in [stack] [args[0]?] matches [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:name = [args[0]#PodSymbol?].unwrap.str;
+        given lookup [name] in [lexical_frame] in [stack] as $PodVal:og_val {
+            frame.data = InplaceSetFrameData [
+                name, og_val
+            ];
+            given make frame in [stack] of [args[1]]
+                args: [[[$PodVal] [og_val]] + [[args].slice_from[2]]]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+        };
+        return null#$PodVal?;
+    }
+
+    ("global") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args] all match [SymbolPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        RootPodFrame:root = [stack].get_root_frame;
+        for $PodVal:arg in args {
+            [root.vars].append[PodFrameVar [[arg].get_string, pod nil]];
+        };
+        return pod nil;
+    }
+
+    ("set") {
+        require in [stack] between [3] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+
+        if [args].len == 3 && ([args[0]].matches [SymbolPattern []])
+            && ([args[1]].matches [ExactSymbolPattern ["="]]) {
+            Str:name = [args[0]#PodSymbol?].unwrap.str;
+            if name[0]? != '*' {
+                set var [name]
+                    in [lexical_frame]
+                    to [args[2]];
+                return pod nil;
+            };
+        };
+
+        Bool:found_eq = false;
+        [Str]:var_names = [Str] [];
+        [$PodVal]:vals = [$PodVal] [];
+        for $PodVal:arg in args {
+            if found_eq {
+                [vals].append[arg];
+            } else {
+                require in [stack] [arg] matches [SymbolPattern []];
+                if stack.active_error {return null#$PodVal?;};
+                Str:name = [arg#PodSymbol?].unwrap.str;
+                if [name] equals ["="] {
+                    found_eq = true;
+                } else {
+                    [var_names].append[name];
+                };
+            };
+        };
+
+        set vars [var_names] of [lexical_frame] in [stack] to [vals] exact: [true];
+
+        return pod nil;
+    }
+
+    ("args") {
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        require in [stack] [[args].at[-1]] matches [FnPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return PodBuiltinFn ["#args", ArgsCaptureData [
+            [args].slice[0][[args].len - 1], [args].at[-1]
+        ]];
+    }
+
+    ("#args") {
+        ArgsCaptureData:data = [builtin.data#ArgsCaptureData?].unwrap;
+        $PodFrame?:maybe_sub_frame = make frame in [stack]
+            of [data.fn] args: [args];
+        if !maybe_sub_frame {
+            return null#$PodVal?;
+        };
+        $PodFrame:sub_frame = [maybe_sub_frame].unwrap;
+        replace top of [stack] with [sub_frame];
+        given sub_frame as $LexicalPodFrame:lexical_frame {
+            [Str]:var_names = [Str] [];
+            for $PodVal:name_val in data.name_vals {
+                require in [stack] [name_val] matches [SymbolPattern []];
+                if stack.active_error {return null#$PodVal?;};
+                [var_names].append[[name_val#PodSymbol?].unwrap.str];
+            };
+            set vars [var_names] of [lexical_frame] in [stack] to [args] exact: [false];
+        } else {
+            Str:msg = "Cannot set argument variables in non lexical frame";
+            [stack].error["stack"][msg];
+            return null#$PodVal?;
+        };
+        return null;
+    }
+
+    ("defun") {
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args[0]?] matches [SymbolPattern []];
+        require in [stack] [args[1]?] matches [FnPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:name = [args[0]].get_string;
+        if [name].starts_with["#"] {
+            [stack].error["name"]["Function name may not start with '#'"];
+            return null#$PodVal?;
+        };
+        register fn [[args[1]#$PodFn?].unwrap]
+            under [name] in [stack];
+        return pod nil;
+    }
+
+    ("getfun") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:fn_name = [args[0]].get_string;
+        given lookup registered fn [fn_name] in [stack] as $PodFn:fn {
+            return fn;
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("errortype") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [ErrorPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodError:error = [args[0]#PodError?].unwrap;
+        return PodStr [error.type];
+    }
+
+    ("errormsg") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [ErrorPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodError:error = [args[0]#PodError?].unwrap;
+        given error.msg as Str:msg {
+            return PodStr [msg];
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("errordata") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [ErrorPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodError:error = [args[0]#PodError?].unwrap;
+        given error.data as $PodVal:result {
+            return result;
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("repr") {
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        return PodStr [[args[0]].stringify];
+    }
+
+    ("par") { // partial application
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        return PodBuiltinFn ["#par", ParCaptureData [
+            args[0], [args].slice_from[1]
+        ]];
+    }
+
+    ("#par") {
+        ParCaptureData:data = [builtin.data#ParCaptureData?].unwrap;
+        [$PodVal]:full_args = [data.args] + [args];
+        given make frame in [stack] of [data.fn] args: [full_args]
+        as $PodFrame:sub_frame {
+            replace top of [stack] with [sub_frame];
+        };
+        return null#$PodVal?;
+    }
+
+    ("rpar") { // reverse partial application
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        return PodBuiltinFn ["#rpar", ParCaptureData [
+            args[0], [args].slice_from[1]
+        ]];
+    }
+
+    ("#rpar") {
+        ParCaptureData:data = [builtin.data#ParCaptureData?].unwrap;
+        [$PodVal]:full_args = [args] + [data.args];
+        given make frame in [stack] of [data.fn] args: [full_args]
+        as $PodFrame:sub_frame {
+            replace top of [stack] with [sub_frame];
+        };
+        return null#$PodVal?;
+    }
+
+    ("compose") {
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        return PodBuiltinFn ["#compose", ComposeCaptureData [args]];
+    }
+
+    ("#compose") {
+        given frame.data as ComposeFrameData:frame_data {
+            $PodVal:val = [frame.recieved].unwrap;
+            if !frame_data.fns {
+                return val;
+            };
+            given make frame in [stack]
+                of [[frame_data.fns].pop_end] args: [[$PodVal] [val]]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+        } else {
+            ComposeCaptureData:cap_data
+                = [builtin.data#ComposeCaptureData?].unwrap;
+            ComposeFrameData:frame_data
+                = ComposeFrameData [[cap_data.fns].clone];
+            frame.data = frame_data;
+            given make frame in [stack]
+                of [[frame_data.fns].pop_end] args: [args]
+            as $PodFrame:sub_frame {
+                [stack.frames].append[sub_frame];
+            };
+        };
+        return null#$PodVal?;
+    }
+
+    ("_") { // the identity function
+        if args {
+            return args[0];
+        } else {
+            return pod nil;
+        };
+    }
+
+    ("C") { // creates a constant function
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        return PodBuiltinFn ["#C", CCaptureData [args[0]]];
+    }
+
+    ("#C") {
+        return [builtin.data#CCaptureData?].unwrap.val;
+    }
+    
+    {
+        return null;
+    };
+}

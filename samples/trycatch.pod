@@ -5,7 +5,7 @@ try {
             set j = 0
             forever {
                 if (= $j 10) {
-                    throw (error (choose (>= $i 3) errb erra))
+                    throw::error (choose (>= $i 3) errb erra)
                 }
                 set j = (+ $j 1)
             }

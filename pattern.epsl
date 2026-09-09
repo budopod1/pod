@@ -29,6 +29,15 @@ TxtPattern {}
 StringPattern {}
 
 @extends Pattern;
+PairPattern {}
+
+@extends Pattern;
+ArrayPattern {}
+
+@extends Pattern;
+TablePattern {}
+
+@extends Pattern;
 EitherPattern {
     [$Pattern]:options
 }
@@ -60,6 +69,12 @@ Bool#[$PodVal:val].matches[$Pattern:pattern] {
         return (!!(val#PodStr?)) || (!!(val#PodSymbol?));
     } given pattern as StringPattern:str_pattern {
         return !!(val#PodStr?);
+    } given pattern as PairPattern:pair_pattern {
+        return !!(val#PodPair?);
+    } given pattern as ArrayPattern:arr_pattern {
+        return !!(val#PodArray?);
+    } given pattern as TablePattern:tbl_pattern {
+        return !!(val#PodTable?);
     } given pattern as EitherPattern:either_pattern {
         for $Pattern:option in either_pattern.options {
             if [val].matches[option] {
@@ -94,6 +109,12 @@ Str#[$Pattern:pattern].message {
         return "symbol or string";
     } given pattern as StringPattern:str_pattern {
         return "string";
+    } given pattern as PairPattern:pair_pattern {
+        return "pair";
+    } given pattern as ArrayPattern:arr_pattern {
+        return "array";
+    } given pattern as TablePattern:tbl_pattern {
+        return "table";
     } given pattern as EitherPattern:either_pattern {
         Str:result = [""].clone;
         for $Pattern:option in either_pattern.options {

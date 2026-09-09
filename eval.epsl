@@ -222,10 +222,16 @@ $PodFrame?#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:a
     };
 }
 
-Bool#run cycle in [PodStack:stack] {
+Bool#check interrupt in [PodStack:stack] {
     if consume_interrupt_request {
         [stack].error["int"]["Keyboard interrupt"];
+        return true;
     };
+    return false;
+}
+
+Bool#run cycle in [PodStack:stack] {
+    check interrupt in [stack];
 
     $PodFrame:frame = [stack.frames].at[-1];
     given stack.active_error as PodError:active_error {

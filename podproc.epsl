@@ -52,10 +52,10 @@ Str?#lookup redirect file [Str:str] in [PodStack:stack] {
 }
 
 ProcOutputRedirect?#make output redirection from [Str:str] in [PodStack:stack] {
-    if [str] equals ["."] {
+    if [str] equals [".."] {
         // pipe
         return ProcOutputRedirect [3, null];
-    } elif [str] equals [".."] {
+    } elif [str] equals ["."] {
         // pipe, strip final newline
         return ProcOutputRedirect [5, null];
     } elif [str] equals ["&1"] {

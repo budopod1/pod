@@ -36,6 +36,23 @@ Bool#[W:id].terminates_line {
     return id == '\n' || id == ';';
 }
 
+$PodArg?#parse cont S expr [ParseState:state] outer: [Bool:outer] {
+    [state].consume; // eat the ':'
+    Bool:is_spread = ![state].is_at_end && [state].cur_id == ':';
+    if is_spread {
+        [state].consume; // eat the ':'
+    };
+    given parse S expr [state] outer: [outer] as PodSExpr:sexpr {
+        if is_spread {
+            return PodSpreadArg [sexpr];
+        } else {
+            return sexpr;
+        };
+    } else {
+        return null;
+    };
+}
+
 PodSExpr?#parse S expr [ParseState:state] outer: [Bool:outer] {
     [$PodArg]:args = [$PodArg] [];
     while ![state].is_at_end && [state].cur_id != '|' {
@@ -49,6 +66,15 @@ PodSExpr?#parse S expr [ParseState:state] outer: [Bool:outer] {
         Bool:is_spread = [state].cur_id == ':';
         if is_spread {
             [state].consume; // eat the ':'
+            if ![state].is_at_end && [state].cur_id == ':' {
+                given parse cont S expr [state] outer: [outer]
+                as $PodArg:arg {
+                    [args].append[arg];
+                } else {
+                    return null;
+                };
+                break;
+            };
         };
         given parse expr [state] as $PodExpr:expr {
             $PodArg:arg = expr;

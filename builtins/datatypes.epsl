@@ -1,5 +1,6 @@
 %import pattern;
 %import frames;
+%import table;
 %import eval;
 %import vals;
 
@@ -63,6 +64,28 @@ $PodVal??#run datatype builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("arr") {
         return PodArray [args];
+    }
+
+    ("tbl") {
+        require in [stack] [args] all match [EitherPattern [[$Pattern] [
+            ArrayPattern [], PairPattern []
+        ]]];
+        if stack.active_error {return null#$PodVal?;};
+        PodTable:tbl = make table;
+        for $PodVal:arg in args {
+            given arg as PodPair:pair {
+                [tbl].put_pair[PodPair [pair.car, pair.cdr]];
+            } given arg as PodArray:arr {
+                if [arr.elems].len != 2 {
+                    [stack].error["arg"]["Expected array of length 2"];
+                    return null#$PodVal?;
+                };
+                [tbl].put_pair[PodPair [arr.elems[0], arr.elems[1]]];
+            } else {
+                abort;
+            };
+        };
+        return tbl;
     }
 
     ("cons") {

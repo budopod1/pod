@@ -1,6 +1,7 @@
 %import platform;
 %import frames;
 %import paths;
+%import math;
 %import vals;
 %import proc;
 
@@ -26,6 +27,10 @@
         PodFrameVar ["nil", pod nil],
         PodFrameVar ["t", pod bool [true]],
         PodFrameVar ["f", pod bool [false]],
+        PodFrameVar ["NaN", PodFloat [NaN]],
+        PodFrameVar ["inf", PodFloat [infinity]],
+        PodFrameVar ["M-pi", PodFloat [pi]],
+        PodFrameVar ["M-e", PodFloat [e]],
         PodFrameVar ["PODPID", PodInt [get current PID]],
         PodFrameVar ["UID", uid_val],
         PodFrameVar ["EUID", euid_val],

@@ -1,3 +1,4 @@
+%import builtins.iter;
 %import pattern;
 %import frames;
 %import eval;
@@ -143,10 +144,10 @@ $PodVal??#run str builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         require in [stack] [args[0]?] matches [TxtPattern []];
         require in [stack] [args[1]?] matches [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
-        Str:str = [args[0]].get_string;
         [$PodVal]:parts = [$PodVal] [];
         if [args].len >= 2 {
-            Str:sep = [args[1]].get_string;
+            Str:sep = [args[0]].get_string;
+            Str:str = [args[1]].get_string;
             if [sep].len == 0 {
                 for Byte:byte in str {
                     [parts].append[PodStr [Str [byte]]];
@@ -157,6 +158,7 @@ $PodVal??#run str builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
                 };
             };
         } else {
+            Str:str = [args[0]].get_string;
             Str:sep_chrs = " \t\n\r";
             L?:part_start = null;
             L:i = 0;
@@ -177,20 +179,55 @@ $PodVal??#run str builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         return PodArray [parts];
     }
 
+    ("join") {
+        if !frame.data {
+            require in [stack] between [1] and [2] in [args];
+            if stack.active_error {return null#$PodVal?;};
+            frame.data = SpreadFrameData [[args].at[-1], [$PodVal] []];
+        };
+        SpreadFrameData:data = [frame.data#SpreadFrameData?].unwrap;
+        given spread [data] in [stack] as PodArray:arr {
+            Str:sep = "";
+            if [args].len >= 2 {
+                sep = [args[0]].get_string;
+            };
+            Str:result = Str [];
+            for $PodVal:elem in arr.elems {
+                if result {
+                    [result].extend[sep];
+                };
+                [result].extend[[elem].get_string];
+            };
+            return PodStr [result];
+        } else {
+            return null#$PodVal?;
+        };
+    }
+
     ("replace") {
-        require in [stack] between [3] and [3] in [args];
+        require in [stack] between [1] and [null] in [args];
         require in [stack] [args] all match [TxtPattern []];
         if stack.active_error {return null#$PodVal?;};
         Str:str = [args[0]].get_string;
-        Str:replacee = [args[1]].get_string;
-        Str:replacement = [args[2]].get_string;
-        if replacee {
-            [Str]:parts = [str].split[replacee];
-            return PodStr [[parts].join[replacement]];
-        } else {
-            [stack].error["arg"]["Cannot replace with empty replacee"];
-            return null#$PodVal?;
+        L:i = 1;
+        while i < [args].len {
+            if i + 1 >= [args].len {
+                Str:msg = "Replacee must have corresponding replacement";
+                [stack].error["arg"][msg];
+                return null#$PodVal?;
+            };
+            Str:replacee = [args[i]].get_string;
+            Str:replacement = [args[i+1]].get_string;
+            if replacee {
+                [Str]:parts = [str].split[replacee];
+                str = [parts].join[replacement];
+            } else {
+                [stack].error["arg"]["Cannot replace with empty replacee"];
+                return null#$PodVal?;
+            };
+            i += 2;
         };
+        return PodStr [str];
     }
 
     ("toupper") {

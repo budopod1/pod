@@ -1,0 +1,194 @@
+%import pattern;
+%import frames;
+%import table;
+%import eval;
+%import vals;
+
+@extends BuiltinCaptureData;
+TableIterCaptureData {
+    PodTable:table,
+    L:i,
+    Str:mode
+}
+
+$PodVal??#run dstr builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("push") {
+        require in [stack] between [1] and [null] in [args];
+        require in [stack] [args[0]] matches [ArrayPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodArray:arr = [args[0]#PodArray?].unwrap;
+        [arr.elems].extend[[args].slice_from[1]];
+        return arr;
+    }
+
+    ("put") {
+        require in [stack] between [3] and [3] in [args];
+        require in [stack] [args[0]] matches [EitherPattern [[$Pattern] [
+            ArrayPattern [], TablePattern []
+        ]]];
+        if stack.active_error {return null#$PodVal?;};
+        given args[0] as PodArray:arr {
+            require in [stack] [args[1]] matches [IntPattern []];
+            if stack.active_error {return null#$PodVal?;};
+            Z64:Zi = [args[1]] as int;
+            if Zi < 0 {
+                Zi += [arr.elems].len;
+            };
+            L:i = Zi#L;
+            if i > [arr.elems].len {
+                [stack].error["key"]["Index out of range"];
+                return null#$PodVal?;
+            } elif i == [arr.elems].len {
+                [arr.elems].append[args[2]];
+            } else {
+                arr.elems[i] = args[2];
+            };
+            return arr;
+        } given args[0] as PodTable:tbl {
+            [tbl].put_pair[PodPair [args[1], args[2]]];
+            return tbl;
+        } else {
+            abort;
+        };
+    }
+
+    ("pop") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]] matches [EitherPattern [[$Pattern] [
+            ArrayPattern [], TablePattern []
+        ]]];
+        if stack.active_error {return null#$PodVal?;};
+        given args[0] as PodArray:arr {
+            L:i = [arr.elems].len - 1;
+            if [args].len >= 2 {
+                require in [stack] [args[1]] matches [IntPattern []];
+                if stack.active_error {return null#$PodVal?;};
+                Z64:Zi = [args[1]] as int;
+                if Zi < 0 {
+                    Zi += [arr.elems].len;
+                };
+                i = Zi#L;
+            };
+            if i >= [arr.elems].len {
+                return pod nil;
+            };
+            return [arr.elems].pop[i];
+        } given args[0] as PodTable:tbl {
+            require in [stack] between [2] and [2] in [args];
+            if stack.active_error {return null#$PodVal?;};
+            given [tbl].pop_pair[args[1]] as PodPair:pair {
+                return pair.cdr;
+            } else {
+                return pod nil;
+            };
+        } else {
+            abort;
+        };
+    }
+
+    ("insert") {
+        require in [stack] between [3] and [3] in [args];
+        require in [stack] [args[0]] matches [ArrayPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodArray:arr = [args[0]#PodArray?].unwrap;
+        Z64:Zi = [args[1]] as int;
+        if Zi < 0 {
+            Zi += [arr.elems].len;
+        };
+        L:i = Zi#L;
+        if i > [arr.elems].len {
+            [stack].error["key"]["Index out of range"];
+            return null#$PodVal?;
+        };
+        [arr.elems].insert[i][args[2]];
+        return arr;
+    }
+
+    ("hash") {
+        require in [stack] between [1] and [1] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        return PodInt [[args[0]].hash];
+    }
+
+    ("#tbl-iter") {
+        TableIterCaptureData:data
+            = [builtin.data#TableIterCaptureData?].unwrap;
+        while data.i < [data.table.slots].len {
+            PodPair?:slot = data.table.slots[data.i];
+            data.i += 1;
+            given slot as PodPair:pair {
+                $PodVal:result = pod nil;
+                switch data.mode
+                ("keys") {
+                    result = pair.car;
+                }
+                ("vals") {
+                    result = pair.cdr;
+                }
+                ("aitems") {
+                    result = PodArray [[$PodVal] [pair.car, pair.cdr]];
+                }
+                ("pitems") {
+                    result = PodPair [pair.car, pair.cdr];
+                }
+                {
+                    abort;
+                };
+                return PodPair [result, args[0]];
+            };
+            if check interrupt in [stack] {return null#$PodVal?;};
+        };
+        return pod nil;
+    }
+
+    ("keys") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [TablePattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return mkiter [PodBuiltinFn ["#tbl-iter", TableIterCaptureData [
+            [args[0]#PodTable?].unwrap, 0, "keys"
+        ]]];
+    }
+
+    ("vals") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [TablePattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return mkiter [PodBuiltinFn ["#tbl-iter", TableIterCaptureData [
+            [args[0]#PodTable?].unwrap, 0, "vals"
+        ]]];
+    }
+
+    ("aitems") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [TablePattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return mkiter [PodBuiltinFn ["#tbl-iter", TableIterCaptureData [
+            [args[0]#PodTable?].unwrap, 0, "aitems"
+        ]]];
+    }
+
+    ("pitems") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [TablePattern []];
+        if stack.active_error {return null#$PodVal?;};
+        return mkiter [PodBuiltinFn ["#tbl-iter", TableIterCaptureData [
+            [args[0]#PodTable?].unwrap, 0, "pitems"
+        ]]];
+    }
+
+    ("haskey") {
+        require in [stack] between [2] and [2] in [args];
+        require in [stack] [args[0]?] matches [TablePattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodTable:tbl = [args[0]#PodTable?].unwrap;
+        return pod bool [!![tbl].get_pair[args[1]]];
+    }
+
+    {
+        return null;
+    };
+}
