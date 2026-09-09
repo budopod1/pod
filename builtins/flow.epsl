@@ -36,7 +36,7 @@ CaseFrameData {
 
 @extends BuiltinFrameData;
 TryFrameData {
-    $PodVal:catch,
+    $PodVal?:catch,
     [Str]:types
 }
 
@@ -380,10 +380,14 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
                 };
             };
             if !data.types || found {
-                given make frame in [stack] of [data.catch]
-                    args: [[$PodVal] [error]]
-                as $PodFrame:sub_frame {
-                    replace top of [stack] with [sub_frame];
+                given data.catch as $PodVal:catch {
+                    given make frame in [stack] of [catch]
+                        args: [[$PodVal] [error]]
+                    as $PodFrame:sub_frame {
+                        replace top of [stack] with [sub_frame];
+                    };
+                } else {
+                    return pod nil;
                 };
             } else {
                 [stack].error[error];
@@ -395,14 +399,19 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         require in [stack] [args[1]?] matches [ExactSymbolPattern ["catch"]];
         if stack.active_error {return null#$PodVal?;};
         
+        $PodVal?:catch_block = null;
+        if [[args].at[-1]].matches[FnPattern []] {
+            catch_block = [args].pop_end;
+        };
+
         [Str]:caught_types = [Str] [];
-        for $PodVal:type_val in args from 2 to [args].len - 1 {
+        for $PodVal:type_val in args from 2 {
             require in [stack] [type_val] matches [TxtPattern []];
             if stack.active_error {return null#$PodVal?;};
             [caught_types].append[[type_val].get_string];
         };
 
-        frame.data = TryFrameData [[args].at[-1], caught_types];
+        frame.data = TryFrameData [catch_block, caught_types];
         frame.landing = ErrorLanding [null];
 
         given make frame in [stack] of [args[0]] args: [[$PodVal] []]
