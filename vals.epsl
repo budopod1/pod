@@ -203,7 +203,7 @@ Str#unparse string [Str:str] {
         } elif byte == '\t' {
             [result].extend["\\t"];
         } elif byte == 127 || byte < 32 {
-            [result].extend["\\u00"];
+            [result].extend["\\x"];
             Str:hex_nibbles = "0123456789ABCDEF";
             [result].append[hex_nibbles[byte ~/ 16]];
             [result].append[hex_nibbles[byte % 16]];

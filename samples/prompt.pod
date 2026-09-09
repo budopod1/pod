@@ -3,5 +3,5 @@ set PROMPT = {
     if (assign homerel :: relpath $dir ~) {
         set dir = :: if (= $homerel .) {_ ~} else {. ~/ $homerel}
     }
-    . (style (whoami >.) bold green) ":" (style $dir bold blue) "$ "
+    . (style (whoami >.) prompt bold green) ":" (style $dir prompt bold blue) "$ "
 }

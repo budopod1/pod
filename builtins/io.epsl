@@ -40,8 +40,7 @@ RGB?#parse rgb hex [Str:str] in [PodStack:stack] {
     ];
 }
 
-TextStyle?#parse text style [$PodVal:val] in [PodStack:stack] {
-    Str:txt = [val].get_string;
+TextStyle?#parse text style [Str:txt] in [PodStack:stack] {
     switch txt
     ("bold") {return TXT_BOLD;}
     ("dark") {return TXT_DARK;}
@@ -132,14 +131,24 @@ $PodVal??#run io builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         if stack.active_error {return null#$PodVal?;};
         Str:str = [args[0]].get_string;
         [TextStyle]:styles = [TextStyle] [];
+        Bool:is_prompt = false;
         for $PodVal:arg in args from 1 {
-            given parse text style [arg] in [stack] as TextStyle:style {
+            Str:txt = [arg].get_string;
+            if [txt] equals ["prompt"] {
+                is_prompt = true;
+                continue;
+            };
+            given parse text style [txt] in [stack] as TextStyle:style {
                 [styles].append[style];
             } else {
                 return null#$PodVal?;
             };
         };
-        return PodStr [style [str] with [styles]];
+        if is_prompt {
+            return PodStr [style prompt [str] with [styles]];
+        } else {
+            return PodStr [style [str] with [styles]];
+        };
     }
 
     ("shouldstyle") {
