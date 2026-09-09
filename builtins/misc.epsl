@@ -1,3 +1,5 @@
+%import builtins.iter;
+
 %import pattern;
 %import frames;
 %import eval;
@@ -14,9 +16,21 @@ InplaceSetFrameData {
     $PodVal:og_val
 }
 
+@extends BuiltinFrameData;
+FlatArgsFrameData {
+    [$PodVal]:iters,
+    [$PodVal]:flattened
+}
+
 @extends BuiltinCaptureData;
 ArgsCaptureData {
-    [$PodVal]:name_vals,
+    [Str]:var_names,
+    $PodFn:fn
+}
+
+@extends BuiltinCaptureData;
+FlatArgsCaptureData {
+    [Str]:var_names,
     $PodVal:fn
 }
 
@@ -142,7 +156,7 @@ $PodVal??#run misc builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
             as $PodFrame:sub_frame {
                 [stack.frames].append[sub_frame];
             };
-            return null;
+            return null#$PodVal?;
         } else {
             return last;
         };
@@ -162,7 +176,7 @@ $PodVal??#run misc builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
             as $PodFrame:sub_frame {
                 [stack.frames].append[sub_frame];
             };
-            return null;
+            return null#$PodVal?;
         } else {
             return last;
         };
@@ -368,34 +382,80 @@ $PodVal??#run misc builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         if stack.active_error {return null#$PodVal?;};
         require in [stack] [[args].at[-1]] matches [FnPattern []];
         if stack.active_error {return null#$PodVal?;};
+        [Str]:var_names = [Str] [];
+        for $PodVal:name_val in args to [args].len - 1 {
+            require in [stack] [name_val] matches [SymbolPattern []];
+            if stack.active_error {return null#$PodVal?;};
+            [var_names].append[[name_val#PodSymbol?].unwrap.str];
+        };
         return PodBuiltinFn ["#args", ArgsCaptureData [
-            [args].slice[0][[args].len - 1], [args].at[-1]
+            var_names, [[args].at[-1]#$PodFn?].unwrap
         ]];
     }
 
     ("#args") {
         ArgsCaptureData:data = [builtin.data#ArgsCaptureData?].unwrap;
-        $PodFrame?:maybe_sub_frame = make frame in [stack]
+        $PodFrame:sub_frame = make frame in [stack]
             of [data.fn] args: [args];
+        replace top of [stack] with [sub_frame];
+        given sub_frame as $LexicalPodFrame:lexical_frame {
+            set vars [data.var_names] of [lexical_frame] in [stack]
+                to [args] exact: [false];
+        } else {
+            Str:msg = "Cannot set argument variables in non lexical frame";
+            [stack].error["stack"][msg];
+            return null#$PodVal?;
+        };
+        return null#$PodVal?;
+    }
+
+    ("#flatargs") {
+        if !frame.data {
+            frame.data = FlatArgsFrameData [args, [$PodVal] []];
+        };
+
+        FlatArgsFrameData:frame_data
+            = [frame.data#FlatArgsFrameData?].unwrap;
+        while frame_data.iters {
+            $PodVal:iter = frame_data.iters[0];
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if ![iter].iter_lenp {
+                [frame_data.iters].pop[0];
+                continue;
+            };
+            [frame_data.flattened].append[[iter].iter_car];
+            frame_data.iters[0] = [iter].iter_cdr;
+            if check interrupt in [stack] {return null#$PodVal?;};
+        };
+
+        FlatArgsCaptureData:cap_data
+            = [builtin.data#FlatArgsCaptureData?].unwrap;
+        $PodFrame?:maybe_sub_frame = make frame in [stack]
+            of [cap_data.fn] args: [frame_data.flattened];
         if !maybe_sub_frame {
             return null#$PodVal?;
         };
         $PodFrame:sub_frame = [maybe_sub_frame].unwrap;
         replace top of [stack] with [sub_frame];
         given sub_frame as $LexicalPodFrame:lexical_frame {
-            [Str]:var_names = [Str] [];
-            for $PodVal:name_val in data.name_vals {
-                require in [stack] [name_val] matches [SymbolPattern []];
-                if stack.active_error {return null#$PodVal?;};
-                [var_names].append[[name_val#PodSymbol?].unwrap.str];
-            };
-            set vars [var_names] of [lexical_frame] in [stack] to [args] exact: [false];
-        } else {
-            Str:msg = "Cannot set argument variables in non lexical frame";
-            [stack].error["stack"][msg];
-            return null#$PodVal?;
+            set vars [cap_data.var_names] of [lexical_frame] in [stack]
+                to [frame_data.flattened] exact: [false];
         };
-        return null;
+        return null#$PodVal?;
+    }
+
+    ("flatargs") {
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        [Str]:var_names = [Str] [];
+        for $PodVal:name_val in args to [args].len - 1 {
+            require in [stack] [name_val] matches [SymbolPattern []];
+            if stack.active_error {return null#$PodVal?;};
+            [var_names].append[[name_val#PodSymbol?].unwrap.str];
+        };
+        return PodBuiltinFn ["#flatargs", FlatArgsCaptureData [
+            var_names, [args].at[-1]
+        ]];
     }
 
     ("defun") {

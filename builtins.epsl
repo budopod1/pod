@@ -136,6 +136,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "select",
         "reverse",
         "flat",
+        "flatargs",
         "idxof",
 
         "not",
@@ -262,6 +263,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     [BuiltinSynonym]:synonyms = [BuiltinSynonym] [
         BuiltinSynonym [PodBuiltinFn ["args", null], "=>"],
+        BuiltinSynonym [PodBuiltinFn ["flatargs", null], "flat=>"],
         BuiltinSynonym [PodBuiltinFn ["Band", null], "&"],
         BuiltinSynonym [PodBuiltinFn ["Bxor", null], "^"],
     ];
