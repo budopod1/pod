@@ -79,6 +79,13 @@ AtSliceFrameData {
     [$PodVal]:elems
 }
 
+@extends BuiltinFrameData;
+IdxOfFrameData {
+    $PodVal:haystack,
+    $PodVal:needle,
+    L:idx
+}
+
 @extends BuiltinCaptureData;
 RangeCaptureData {
     Z64:from,
@@ -1086,6 +1093,51 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         return mkiter [PodBuiltinFn [
             "#flat", FlatCaptureData [args[0], null]
         ]];
+    }
+
+    ("idxof") {
+        if !frame.data {
+            require in [stack] between [2] and [2] in [args];
+            if stack.active_error {return null#$PodVal?;};
+            if [args[0]].matches[TxtPattern []] {
+                require in [stack] [args[1]] matches [TxtPattern []];
+                if stack.active_error {return null#$PodVal?;};
+                Str:haystack = [args[0]].get_string;
+                Str:needle = [args[1]].get_string;
+                given [haystack].index_of[needle] as L:idx {
+                    return PodInt [idx];
+                } else {
+                    [stack].error["key"]["Substring not found in string"];
+                    return null#$PodVal?;
+                };
+            };
+            frame.data = IdxOfFrameData [args[0], args[1], 0];
+        };
+
+        IdxOfFrameData:data = [frame.data#IdxOfFrameData?].unwrap;
+        while true {
+            $PodVal:iter = data.haystack;
+            given iter as PodArray:arr {
+                for L:j enumerating arr.elems {
+                    if [arr.elems[j]] equals [data.needle] {
+                        return PodInt [data.idx + j];
+                    };
+                };
+                break;
+            };
+            if resolve iter [iter] in [stack] {return null#$PodVal?;};
+            if ![iter].iter_lenp {
+                break;
+            };
+            if [[iter].iter_car] equals [data.needle] {
+                return PodInt [data.idx];
+            };
+            data.haystack = [iter].iter_cdr;
+            data.idx += 1;
+            if check interrupt in [stack] {return null#$PodVal?;};
+        };
+        [stack].error["key"]["Key not found for specified value"];
+        return null#$PodVal?;
     }
 
     {

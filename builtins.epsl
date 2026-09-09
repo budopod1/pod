@@ -136,6 +136,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "select",
         "reverse",
         "flat",
+        "idxof",
 
         "not",
         "or",
