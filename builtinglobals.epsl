@@ -1,4 +1,7 @@
+%import builtins.files;
+
 %import platform;
+%import fileio;
 %import frames;
 %import paths;
 %import math;
@@ -35,5 +38,8 @@
         PodFrameVar ["UID", uid_val],
         PodFrameVar ["EUID", euid_val],
         PodFrameVar ["USER", user],
+        PodFrameVar ["stdin", PodFile ["file", get_stdin_file]],
+        PodFrameVar ["stdout", PodFile ["file", get_stdout_file]],
+        PodFrameVar ["stderr", PodFile ["file", get_stderr_file]],
     ];
 }

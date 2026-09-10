@@ -8,6 +8,7 @@
 %import builtins.str;
 %import builtins.cmd;
 %import builtins.io;
+%import builtins.files;
 
 %import pattern;
 %import frames;
@@ -63,6 +64,10 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
     };
 
     given run cmd builtin [frame] in [stack] as $PodVal?:result {
+        return result;
+    };
+
+    given run file builtin [frame] in [stack] as $PodVal?:result {
         return result;
     };
 
@@ -254,6 +259,14 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "env",
         "capstatus",
         "cmdor",
+
+        "fopen",
+        "fclose",
+        "read",
+        "write",
+        "atEOF",
+        "readlines",
+        "writelines",
     ];
 
     for Str:name in names {

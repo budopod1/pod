@@ -1,0 +1,201 @@
+%import pattern;
+%import iotools;
+%import fileio;
+%import frames;
+%import table;
+%import paths;
+%import eval;
+%import vals;
+
+@extends BuiltinCaptureData;
+ReadlinesCaptureData {
+    PodFile:file
+}
+
+@extends PodOpaque;
+PodFile {
+    File:file
+}
+
+File?#file from [$PodVal:arg] in [PodStack:stack] mode: [W:mode] {
+    given arg as PodFile:pod_file {
+        return pod_file.file;
+    } else {
+        Path:path = pod expand path [[arg].get_string];
+        Str:path_str = [path].stringify;
+        given open_file[path_str][mode] as File:file {
+            return file;
+        } else {
+            [stack].error["io"]["Cannot open file {}" % path_str];
+            return null;
+        };
+    };
+}
+
+$PodVal??#run file builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
+    PodBuiltinFn:builtin = frame.builtin;
+    [$PodVal]:args = frame.arg_vals;
+    switch builtin.name
+    ("fopen") {
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        W:mode_num = 0;
+        if [args].len >= 2 {
+            for Byte:chr in [args[1]].get_string {
+                switch chr
+                ('r') {
+                    mode_num = [mode_num] | [FILE_READ_MODE];
+                }
+                ('w') {
+                    mode_num = [mode_num] | [FILE_WRITE_MODE];
+                }
+                ('a') {
+                    mode_num = [mode_num] | [FILE_APPEND_MODE];
+                }
+                ('t') {
+                    mode_num = [mode_num] | [FILE_TEXT_MODE];
+                }
+                {
+                    [stack].error["arg"]["Unexpected file mode '{}'" % chr];
+                    return null#$PodVal?;
+                };
+            };
+        } else {
+            mode_num = FILE_READ_MODE;
+        };
+        given file from [args[0]] in [stack] mode: [mode_num] as File:file {
+            return PodFile ["file", file];
+        } else {
+            return null#$PodVal?;
+        };
+    }
+
+    ("fclose") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?]
+            matches [OptionalPattern [OpaquePattern ["file"]]];
+        if stack.active_error {return null#$PodVal?;};
+        given args[0] as PodFile:pod_file {
+            [pod_file.file].close;
+        };
+        return pod nil;
+    }
+
+    ("read") { // defun read ::=> file amount?
+        require in [stack] between [1] and [2] in [args];
+        require in [stack] [args[0]?] matches [EitherPattern [
+            [$Pattern] [TxtPattern [], OpaquePattern ["file"]]
+        ]];
+        require in [stack] [args[1]?] matches [IntPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        File?:maybe_file = file from [args[0]] in [stack]
+            mode: [FILE_READ_MODE];
+        if !maybe_file {return null#$PodVal?;};
+        File:file = [maybe_file].unwrap;
+        given args[1]? as PodInt:int {
+            if int.val < 0 {
+                [stack].error["arg"]["Read amount must be positive"];
+                return null#$PodVal?;
+            };
+            given [file].read_some[int.val#L] as Str:str {
+                return PodStr [str];
+            };
+        } else {
+            given [file].read_all as Str:str {
+                return PodStr [str];
+            };
+        };
+        [stack].error["io"]["Failed to read file"];
+        return null#$PodVal?;
+    }
+
+    ("write") { // defun write ::=> file? content
+        require in [stack] between [1] and [2] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        if [args].len >= 2 {
+            require in [stack] [args[0]] matches [EitherPattern [
+                [$Pattern] [TxtPattern [], OpaquePattern ["file"]]
+            ]];
+        };
+        require in [stack] [[args].at[-1]] matches [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        File:file = get_stdout_file;
+        if [args].len >= 2 {
+            given file from [args[0]] in [stack] mode: [FILE_READ_MODE]
+            as File:arg_file {
+                file = arg_file;
+            } else {
+                return null#$PodVal?;
+            };
+        };
+        Str:data = [[args].at[-1]].get_string;
+        if [file].write[data] {
+            return pod nil;
+        } else {
+            [stack].error["io"]["Failed to write to file"];
+            return null#$PodVal?;
+        };
+    }
+
+    ("atEOF") { // defun atEOF ::=> file
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [OpaquePattern ["file"]];
+        if stack.active_error {return null#$PodVal?;};
+        PodFile:pod_file = [args[0]#PodFile?].unwrap;
+        return pod bool [[pod_file.file].at_EOF];
+    }
+
+    ("#readlines") {
+        PodFile:pod_file = [builtin.data#ReadlinesCaptureData?].unwrap.file;
+        if [pod_file.file].at_EOF {
+            return pod nil;
+        };
+        given [pod_file.file].read_line as Str:line {
+            return PodPair [PodStr [line], args[0]];
+        } else {
+            [stack].error["io"]["Failed to read line of file"];
+            return null#$PodVal?;
+        };
+    }
+
+    ("readlines") { // defun readlines ::=> file
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [OpaquePattern ["file"]];
+        if stack.active_error {return null#$PodVal?;};
+        PodFile:pod_file = [args[0]#PodFile?].unwrap;
+        return mkiter [PodBuiltinFn [
+            "#readlines", ReadlinesCaptureData [pod_file]
+        ]];
+    }
+
+    ("writelines") { // defun writelines ::=> file *lines
+        require in [stack] between [1] and [null] in [args];
+        if stack.active_error {return null#$PodVal?;};
+        require in [stack] [args[0]] matches [EitherPattern [
+            [$Pattern] [TxtPattern [], OpaquePattern ["file"]]
+        ]];
+        require in [stack] [[args].slice_from[1]] all match [TxtPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        Str:content = Str [];
+        for $PodVal:line_arg in args from 1 {
+            [content].extend[[line_arg].get_string];
+            [content].append['\n'];
+        };
+        given file from [args[0]] in [stack] mode: [FILE_READ_MODE]
+        as File:file {
+            if [file].write[content] {
+                return pod nil;
+            } else {
+                [stack].error["io"]["Failed to write to file"];
+                return null#$PodVal?;
+            };
+        } else {
+            return null#$PodVal?;
+        };
+    }
+
+    {
+        return null;
+    };
+}

@@ -43,6 +43,11 @@ EitherPattern {
 }
 
 @extends Pattern;
+OptionalPattern {
+    $Pattern:possibly
+}
+
+@extends Pattern;
 OpaquePattern {
     Str:type
 }
@@ -82,6 +87,8 @@ Bool#[$PodVal:val].matches[$Pattern:pattern] {
             };
         };
         return false;
+    } given pattern as OptionalPattern:optional_pattern {
+        return !!(val#PodNil?) || [val].matches[optional_pattern.possibly];
     } given pattern as OpaquePattern:opaque_pattern {
         given val as $PodOpaque:opaque {
             return [opaque.type] equals [opaque_pattern.type];
@@ -124,6 +131,8 @@ Str#[$Pattern:pattern].message {
             [result].extend[[option].message];
         };
         return result;
+    } given pattern as OptionalPattern:optional_pattern {
+        return "{} or $nil" % [optional_pattern.possibly].stringify;
     } given pattern as OpaquePattern:opaque_pattern {
         return "#{}" % opaque_pattern.type;
     } given pattern as ErrorPattern:error_pattern {
