@@ -145,7 +145,10 @@ $PodVal?#run string [Str:txt] args: [[Str]:str_args] {
     PodFrameVar:PROMPT_var = PodFrameVar [
         "PROMPT", PodStr ["> "]
     ];
-    [PodFrameVar]:vars = [PodFrameVar] [PROMPT_var];
+    PodFrameVar:last_result_var = PodFrameVar [
+        "_", pod nil
+    ];
+    [PodFrameVar]:vars = [PodFrameVar] [PROMPT_var, last_result_var];
 
     run podrc in [stack] vars: [vars];
 
@@ -187,6 +190,7 @@ $PodVal?#run string [Str:txt] args: [[Str]:str_args] {
             if ret_val != pod nil {
                 println[[ret_val].get_string];
             };
+            last_result_var.val = ret_val;
         };
     };
 }
