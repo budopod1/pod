@@ -1,3 +1,4 @@
+%import runerrors;
 %import pattern;
 %import frames;
 %import table;
@@ -136,6 +137,22 @@ $PodVal??#run datatype builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         require in [stack] between [1] and [1] in [args];
         if stack.active_error {return null#$PodVal?;};
         return pod bool [args[0] != pod nil];
+    }
+
+    ("symp") {
+        require in [stack] between [1] and [2] in [args];
+        if [args].len >= 2 {
+            require in [stack] [args[0]] matches [TxtPattern []];
+        };
+        if stack.active_error {return null#$PodVal?;};
+        given [args].at[-1] as PodSymbol:sym {
+            if [args].len >= 2 {
+                return pod bool [[sym.str] equals [[args[0]].get_string]];
+            } else {
+                return pod bool [true];
+            }; 
+        };
+        return pod bool [false];
     }
 
     {

@@ -106,6 +106,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "typestr",
         "nilp",
         "nil~p",
+        "symp",
 
         "forever",
         "if",

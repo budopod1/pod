@@ -1,5 +1,6 @@
 %import builtins.iter;
 
+%import runerrors;
 %import pattern;
 %import frames;
 %import eval;

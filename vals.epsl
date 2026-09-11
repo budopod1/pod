@@ -1,3 +1,4 @@
+%import runerrors;
 %import frames;
 %import table;
 %import eval;
@@ -69,14 +70,12 @@ PodOpaque {
     Str:type
 }
 
-SourceLocation {}
-
 @extends PodVal;
 PodError {
     Str:type,
     Str?:msg,
     $PodVal?:data,
-    SourceLocation?:location
+    Traceback?:traceback
 }
 
 @super;

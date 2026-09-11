@@ -4,6 +4,7 @@
 %import ast;
 
 $PodExpr?#parse expr [ParseState:state] {
+    W:start = [state].cur_start;
     [state].consume;
     if [state].last_id == T_CURLY_GROUP {
         return parse fn body [[state].last_substate];
@@ -11,19 +12,20 @@ $PodExpr?#parse expr [ParseState:state] {
         return parse S expr [[state].last_substate] outer: [false];
     } elif [state].last_id == T_INT {
         Z64:val = [[state].last_data#IntTokenData?].unwrap.val;
-        return PodLiteralExpr [PodInt [val]];
+        return PodLiteralExpr [start, [state].last_end, PodInt [val]];
     } elif [state].last_id == T_FLOAT {
         R:val = [[state].last_data#FloatTokenData?].unwrap.val;
-        return PodLiteralExpr [PodFloat [val]];
+        return PodLiteralExpr [start, [state].last_end, PodFloat [val]];
     } elif [state].last_id == T_STR {
         Str:val = [[state].last_data#StrTokenData?].unwrap.val;
-        return PodLiteralExpr [PodStr [val]];
+        return PodLiteralExpr [start, [state].last_end, PodStr [val]];
     } elif [state].last_id == T_SYM {
         Str:sym = [[state].last_data].read_symbol;
+        W:end = [state].last_end;
         if sym[0] == '$' {
-            return PodVarExpr [[sym].slice_from[1]];
+            return PodVarExpr [start, end, [sym].slice_from[1]];
         } else {
-            return PodLiteralExpr [PodSymbol [sym]];
+            return PodLiteralExpr [start, end, PodSymbol [sym]];
         };
     };
 
@@ -39,12 +41,13 @@ Bool#[W:id].terminates_line {
 $PodArg?#parse cont S expr [ParseState:state] outer: [Bool:outer] {
     [state].consume; // eat the ':'
     Bool:is_spread = ![state].is_at_end && [state].cur_id == ':';
+    W:spread_start = [state].cur_start;
     if is_spread {
         [state].consume; // eat the ':'
     };
     given parse S expr [state] outer: [outer] as PodSExpr:sexpr {
         if is_spread {
-            return PodSpreadArg [sexpr];
+            return PodSpreadArg [spread_start, sexpr.end_index, sexpr];
         } else {
             return sexpr;
         };
@@ -54,6 +57,7 @@ $PodArg?#parse cont S expr [ParseState:state] outer: [Bool:outer] {
 }
 
 PodSExpr?#parse S expr [ParseState:state] outer: [Bool:outer] {
+    W:start = [state].cur_start;
     [$PodArg]:args = [$PodArg] [];
     while ![state].is_at_end && [state].cur_id != '|' {
         if outer && [[state].cur_id].terminates_line {
@@ -64,6 +68,7 @@ PodSExpr?#parse S expr [ParseState:state] outer: [Bool:outer] {
             continue;
         };
         Bool:is_spread = [state].cur_id == ':';
+        W:spread_start = [state].cur_start;
         if is_spread {
             [state].consume; // eat the ':'
             if ![state].is_at_end && [state].cur_id == ':' {
@@ -79,7 +84,7 @@ PodSExpr?#parse S expr [ParseState:state] outer: [Bool:outer] {
         given parse expr [state] as $PodExpr:expr {
             $PodArg:arg = expr;
             if is_spread {
-                arg = PodSpreadArg [expr];
+                arg = PodSpreadArg [spread_start, expr.end_index, expr];
             };
             [args].append[arg];
         } else {
@@ -99,10 +104,12 @@ PodSExpr?#parse S expr [ParseState:state] outer: [Bool:outer] {
             return null;
         };
     };
-    return PodSExpr [args, pipeline];
+    return PodSExpr [start, [state].last_end, args, pipeline];
 }
 
 PodFnExpr?#parse fn body [ParseState:state] {
+    W:start = [state].cur_start;
+
     [PodSExpr]:code = [PodSExpr] [];
     while ![state].is_at_end {
         if [[state].cur_id].terminates_line {
@@ -138,5 +145,5 @@ PodFnExpr?#parse fn body [ParseState:state] {
         [state].consume; // eat the '\n' or ';'
     };
 
-    return PodFnExpr [code, null];
+    return PodFnExpr [start, [state].last_end, state.file, code, null];
 }

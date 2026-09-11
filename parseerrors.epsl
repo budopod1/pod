@@ -8,9 +8,6 @@ Error {
 }
 
 @extends Error;
-MiscError {}
-
-@extends Error;
 FileError {
     Path:path
 }
@@ -33,11 +30,6 @@ IOError {
 
 @super;
 ErrorBundle {}
-
-@extends ErrorBundle;
-MiscErrorBundle {
-    [MiscError]:errors
-}
 
 @extends ErrorBundle;
 FileErrorBundle {
@@ -68,9 +60,7 @@ IOErrorBundle {
 }
 
 Bool#[$ErrorBundle:bundle].any {
-    given bundle as MiscErrorBundle:misc_bundle {
-        return [misc_bundle.errors].len > 0;
-    } given bundle as FileErrorBundle:file_bundle {
+    given bundle as FileErrorBundle:file_bundle {
         return [file_bundle.errors].len > 0;
     } given bundle as TokenizationErrorBundle:tokenization_bundle {
         return [tokenization_bundle.errors].len > 0;
@@ -107,12 +97,6 @@ Bool#[[$ErrorBundle]:bundles].any {
         with content [bundle.file_text]];
 }
 
-#do report errors [MiscErrorBundle:bundle] {
-    for MiscError:error in bundle.errors {
-        report error message [error.message];
-    };
-}
-
 #do report errors [FileErrorBundle:bundle] {
     for FileError:error in bundle.errors {
         report error message ["In {}:\n{}" % [error.path].stringify
@@ -145,9 +129,7 @@ Bool#[[$ErrorBundle]:bundles].any {
 }
 
 Bool#report errors [$ErrorBundle:bundle] {
-    given bundle as MiscErrorBundle:misc_bundle {
-        do report errors [misc_bundle];
-    } given bundle as FileErrorBundle:file_bundle {
+    given bundle as FileErrorBundle:file_bundle {
         do report errors [file_bundle];
     } given bundle as TokenizationErrorBundle:tokenization_bundle {
         do report errors [tokenization_bundle];
@@ -174,10 +156,6 @@ FileErrorBundle#bundle [[FileError]:errors] {
     return FileErrorBundle [errors];
 }
 
-MiscErrorBundle#bundle [[MiscError]:errors] {
-    return MiscErrorBundle [errors];
-}
-
 TokenizationErrorBundle#bundle [TokenizationResult:result] txt: [Str:txt] path: [Path:path] {
     return TokenizationErrorBundle [
         path, txt, result.tokens, result.errors
@@ -192,8 +170,4 @@ ParseErrorBundle#bundle [[ParseError]:errors] txt: [Str:txt] path: [Path:path] {
 
 IOErrorBundle#bundle [[IOError]:errors] {
     return IOErrorBundle [errors];
-}
-
-$ErrorBundle#empty error bundle {
-    return MiscErrorBundle [[MiscError] []];
 }

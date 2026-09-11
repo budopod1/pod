@@ -1,3 +1,4 @@
+%import runerrors;
 %import platform;
 %import builtins;
 %import frames;
@@ -25,6 +26,7 @@ MakeFnVMInstr {
 
 @extends VMInstr;
 CallFnVMInstr {
+    SourceRange:src_range,
     W:arg_count,
     [W]:spread_args
 }
@@ -95,14 +97,14 @@ ForkChildCtx {}
                 PodBuiltinFn ["#spread", null]
             ]];
             compile expr [spread_arg.expr] to [instrs];
-            [instrs].append[CallFnVMInstr [2, [W] []]];
+            [instrs].append[CallFnVMInstr [[arg].range, 2, [W] []]];
             [spread_args].append[i];
         } else {
             abort;
         };
     };
     [instrs].append[CallFnVMInstr [
-        [sexpr.args].len#W, spread_args
+        [sexpr].range, [sexpr.args].len#W, spread_args
     ]];
     given sexpr.pipeline as PodSExpr:pipe_dest {
         [instrs].append[PipeEndVMInstr [true]];
@@ -170,6 +172,7 @@ $PodFrame?#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:a
 
 #execute [$VMInstr:instr] on [ClearFnPodFrame:clear_frame] in [PodStack:stack] {
     [$PodVal]:val_stack = clear_frame.val_stack;
+    clear_frame.src_range = null;
     given instr as LiteralVMInstr:literal_instr {
         [val_stack].append[literal_instr.val];
     } given instr as VarVMInstr:var_instr {
@@ -181,6 +184,8 @@ $PodFrame?#make frame in [PodStack:stack] of [$PodVal:fn_val] args: [[$PodVal]:a
             PodClearFn [make_fn_instr.src, clear_frame]
         ];
     } given instr as CallFnVMInstr:call_fn_instr {
+        clear_frame.src_range = call_fn_instr.src_range;
+
         W:arg_count = call_fn_instr.arg_count;
 
         [$PodVal]:expanded_vals = [$PodVal] [];
@@ -301,16 +306,4 @@ FrameRunResult#run frame [$PodFrame:frame] in [PodStack:stack] {
     $PodVal:ret_val = [top_frame.recieved].unwrap;
     top_frame.recieved = null;
     return FrameRunResult [ret_val, null];
-}
-
-#display error [PodError:error] {
-    if error.msg && (
-        ([error.type] equals ["cmd"]) || ([error.type] equals ["int"])) {
-        println[error.msg];
-    } elif error.msg {
-        println["{} error:" % error.type];
-        println[error.msg];
-    } else {
-        println["{} error" % error.type];
-    };
 }

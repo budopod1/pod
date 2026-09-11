@@ -1,9 +1,19 @@
+%import parsing;
 %import eval;
 %import vals;
 
+@value;
+SourceRange {
+    W:start_index,
+    W:end_index
+}
+
 @super;
 // @sealed;
-PodArg {}
+PodArg {
+    W:start_index,
+    W:end_index
+}
 
 @super;
 @extends PodArg;
@@ -18,6 +28,7 @@ PodSExpr {
 
 @extends PodExpr;
 PodFnExpr {
+    SourceFile:file,
     [PodSExpr]:lines,
     [$VMInstr]?:instrs,
 }
@@ -35,4 +46,8 @@ PodLiteralExpr {
 @extends PodArg;
 PodSpreadArg {
     $PodExpr:expr
+}
+
+SourceRange#[$PodArg:arg].range {
+    return SourceRange [arg.start_index, arg.end_index];
 }

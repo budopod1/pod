@@ -1,7 +1,7 @@
 set PROMPT = {
     set dir = (cwd)
     if (assign homerel :: relpath $dir ~) {
-        set dir = :: if (= $homerel .) {_ ~} else {. ~/ $homerel}
+        set dir =:: if (= $homerel .) {_ ~} else {. ~/ $homerel}
     }
-    . (style (whoami >.) prompt bold green) ":" (style $dir prompt bold blue) "$ "
+    .(style (whoami >.) prompt bold green)":"(style $dir prompt bold blue)"$ "
 }

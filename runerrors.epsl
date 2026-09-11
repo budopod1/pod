@@ -1,0 +1,101 @@
+%import consolestyles;
+%import parsing;
+%import frames;
+%import paths;
+%import json;
+%import vals;
+%import ast;
+
+TracebackFrame {
+    Path:file_path,
+    Str:file_text,
+    W:start_index,
+    W:end_index
+}
+
+@value;
+Traceback {
+    [TracebackFrame]:frames
+}
+
+Traceback#[PodStack:stack].generate_traceback {
+    [TracebackFrame]:frames = [TracebackFrame] [];
+    for $PodFrame:frame in stack.frames {
+        given frame as ClearFnPodFrame:clear_frame {
+            SourceRange:src_range = [clear_frame].active_src_range;
+            SourceFile:src_file = clear_frame.fn.src.file;
+            [frames].append[TracebackFrame [
+                src_file.path, src_file.text,
+                src_range.start_index, src_range.end_index
+            ]];
+        };
+    };
+    return Traceback [frames];
+}
+
+#[PodStack:stack].error[PodError:err] {
+    if !err.traceback {
+        err.traceback = [stack].generate_traceback;
+    };
+    stack.active_error = err;
+    pop frame in [stack];
+}
+
+#[PodStack:stack].error[Str:type][Str:msg] {
+    [stack].error[PodError [type, msg, null, null]];
+}
+
+#display traceback frame [TracebackFrame:frame] {
+    Str:source = frame.file_text;
+    W:lineno = 1;
+    W:line_start = 0;
+    W:line_end = 0;
+    Bool:found_line = false;
+    for W:i enumerating source {
+        if i == frame.start_index {
+            found_line = true;
+        };
+        line_end = i;
+        Byte:b = source[i];
+        if b == '\n' {
+            if found_line {
+                break;
+            };
+            lineno += 1;
+            line_start = i+1;
+        } elif (b == ' ' || b == '\t') && line_start == i {
+            line_start = i+1;
+        };
+        line_end = i+1;
+    };
+    Str:line = [source].slice[line_start][line_end];
+    
+    print[style ["In "] with [TXT_RED]];
+    Str:path_str = [frame.file_path].stringify;
+    Str:location = "\"{}\"" % path_str;
+    if ![path_str] equals ["<REPL>"] {
+        [location].extend[", line {}" % lineno];
+    };
+    println[style [location] with [TXT_CYAN]];
+    print["  "];
+    println[line];
+}
+
+#display error [PodError:error] {
+    if error.msg && (
+        ([error.type] equals ["cmd"]) || ([error.type] equals ["int"])) {
+        println[error.msg];
+        return;
+    };
+    given error.traceback as Traceback:traceback {
+        for TracebackFrame:frame in traceback.frames {
+            display traceback frame [frame];
+        };
+    };
+    if error.msg {
+        println["{} error:" % error.type];
+        println[error.msg];
+    } else {
+        println["{} error" % error.type];
+    };
+}

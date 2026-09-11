@@ -1,6 +1,8 @@
 %import linkreadline;
 
 %import commandconfig;
+%import parseerrors;
+%import runerrors;
 %import astparser;
 %import tokenizer;
 %import inputline;
@@ -8,7 +10,6 @@
 %import parsing;
 %import iotools;
 %import grouper;
-%import errors;
 %import frames;
 %import paths;
 %import eval;
@@ -31,6 +32,7 @@ PodFnExpr?#parse txt [Str:txt] path: [Path:path] {
     };
 
     ParseState:parse_state = ParseState [
+        SourceFile [path, txt],
         grouping_result.tokens, 0, [ParseError] []
     ];
 

@@ -1,5 +1,5 @@
+%import parseerrors;
 %import fileio;
-%import errors;
 %import paths;
 %import proc;
 
@@ -49,7 +49,7 @@ $ErrorBundle#IO error msg: [Str:msg] path: [Path?:maybe_path] {
 FileReadResult#read file [Path:path] {
     given open_file[[path].stringify][FILE_READ_MODE] as File:file {
         given [file].read_all as Str:file_text {
-            return FileReadResult [file_text, empty error bundle];
+            return FileReadResult [file_text, bundle [[IOError] []]];
         };
     };
     return FileReadResult [null, IO error msg: ["Cannot read file"] path: [path]];

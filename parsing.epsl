@@ -1,7 +1,14 @@
+%import parseerrors;
 %import tokenizer;
-%import errors;
+%import paths;
+
+SourceFile {
+    Path:path,
+    Str:text
+}
 
 ParseState {
+    SourceFile:file,
     Tokens:tokens,
     L:index,
     [ParseError]:errors
@@ -159,7 +166,7 @@ W#[ParseState:state].cur_start {
 
 ParseState#[ParseState:state].cur_substate {
     given [state].cur_data as GroupTokenData:group {
-        return ParseState [group.sub, 0, state.errors];
+        return ParseState [state.file, group.sub, 0, state.errors];
     } else {
         abort ["Non group tokens do not have substates"];
     };
@@ -190,7 +197,7 @@ W#[ParseState:state].last_end {
 
 ParseState#[ParseState:state].last_substate {
     given [state].last_data as GroupTokenData:group {
-        return ParseState [group.sub, 0, state.errors];
+        return ParseState [state.file, group.sub, 0, state.errors];
     } else {
         abort ["Non group tokens do not have substates"];
     };

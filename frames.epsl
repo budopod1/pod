@@ -1,7 +1,9 @@
 %import builtinglobals;
+%import runerrors;
 %import builtins;
 %import vals;
 %import eval;
+%import ast;
 
 PodRegisteredFn {
     Str:name,
@@ -67,6 +69,7 @@ BuiltinFrameData {}
 
 @extends LexicalPodFrame;
 ClearFnPodFrame {
+    SourceRange?:src_range,
     PodClearFn:fn,
     W:pc,
     [$PodVal]:val_stack
@@ -95,6 +98,7 @@ ClearFnPodFrame#make clear frame [PodClearFn:fn] args: [[$PodVal]:args] {
         null,             // label
         [PodFrameVar] [], // vars
         fn.parent_frame,  // parent
+        null,             // src_range
         fn,               // fn
         0,                // pc
         [$PodVal] [],     // val_stack
@@ -232,15 +236,6 @@ $PodFn?#lookup registered fn [Str:name] in [PodStack:stack] {
     return null;
 }
 
-#[PodStack:stack].error[PodError:err] {
-    stack.active_error = err;
-    pop frame in [stack];
-}
-
-#[PodStack:stack].error[Str:type][Str:msg] {
-    [stack].error[PodError [type, msg, null, null]];
-}
-
 PodError?#[$PodFrame:frame].consume_error {
     given frame.landing as ErrorLanding:landing {
         given landing.caught_error as PodError:error {
@@ -249,4 +244,12 @@ PodError?#[$PodFrame:frame].consume_error {
         };
     };
     return null;
+}
+
+SourceRange#[ClearFnPodFrame:clear_frame].active_src_range {
+    given clear_frame.src_range as SourceRange:src_range {
+        return src_range;
+    } else {
+        return [clear_frame.fn.src].range;
+    };
 }

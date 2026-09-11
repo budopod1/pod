@@ -7,12 +7,12 @@ try {
                 if (= $j 10) {
                     throw::error (choose (>= $i 3) errb erra)
                 }
-                set j = (+ $j 1)
+                pre j + 1
             }
         } catch erra {
             print "caught" $0
         }
-        set i = (+ 1 $i)
+        pre i + 1
     }
 } catch errb {
     print "done" $0

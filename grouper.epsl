@@ -1,5 +1,5 @@
+%import parseerrors;
 %import tokenizer;
-%import errors;
 
 TokenizationResult#group tokens [Tokens:src_tokens] {
     [TokenizationError]:errors = [TokenizationError] [];
