@@ -10,7 +10,7 @@
 
 @extends BuiltinCaptureData;
 ReadlinesCaptureData {
-    PodFile:file
+    File:file
 }
 
 @extends PodOpaque;
@@ -148,11 +148,11 @@ $PodVal??#run file builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     }
 
     ("#readlines") {
-        PodFile:pod_file = [builtin.data#ReadlinesCaptureData?].unwrap.file;
-        if [pod_file.file].at_EOF {
+        File:file = [builtin.data#ReadlinesCaptureData?].unwrap.file;
+        if [file].at_EOF {
             return pod nil;
         };
-        given [pod_file.file].read_line as Str:line {
+        given [file].read_line as Str:line {
             return PodPair [PodStr [line], args[0]];
         } else {
             [stack].error["io"]["Failed to read line of file"];
@@ -162,12 +162,18 @@ $PodVal??#run file builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("readlines") { // defun readlines ::=> file
         require in [stack] between [1] and [1] in [args];
-        require in [stack] [args[0]?] matches [OpaquePattern ["file"]];
-        if stack.active_error {return null#$PodVal?;};
-        PodFile:pod_file = [args[0]#PodFile?].unwrap;
-        return mkiter [PodBuiltinFn [
-            "#readlines", ReadlinesCaptureData [pod_file]
+        require in [stack] [args[0]?] matches [EitherPattern [
+            [$Pattern] [TxtPattern [], OpaquePattern ["file"]]
         ]];
+        if stack.active_error {return null#$PodVal?;};
+        given file from [args[0]] in [stack] mode: [FILE_READ_MODE]
+        as File:file {
+            return mkiter [PodBuiltinFn [
+                "#readlines", ReadlinesCaptureData [file]
+            ]];
+        } else {
+            return null#$PodVal?;
+        };
     }
 
     ("writelines") { // defun writelines ::=> file *lines
