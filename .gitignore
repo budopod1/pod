@@ -3,5 +3,4 @@
 .*.bc
 .*.ll
 .*.epslcache
-result
 .vscode

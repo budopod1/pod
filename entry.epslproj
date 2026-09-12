@@ -1,1 +1,4 @@
-{"packages": ["json", "paths", "commandconfig", "consolestyles"]}
+{
+    "packages": ["json", "paths", "commandconfig", "consolestyles"],
+    "output-location": "bin/pod"
+}
