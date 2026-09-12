@@ -55,6 +55,17 @@ RedirectionCtx {
 @extends FrameCtx;
 ForkChildCtx {}
 
+@extends FrameCtx;
+DeferredCtx {
+    $PodFn:fn
+}
+
+@extends BuiltinFrameData;
+DeferredFrameData {
+    $PodFn:fn,
+    PodError?:error
+}
+
 #[RedirectionCtx:redirect_ctx].exit stack: [PodStack:stack] {
     restore_std_fd[redirect_ctx.target][redirect_ctx.old_fd];
 }
@@ -64,6 +75,14 @@ ForkChildCtx {}
         display error [error];
     };
     exit with status [0];
+}
+
+#[DeferredCtx:deferred_ctx].exit stack: [PodStack:stack] {
+    PodBuiltinFn:fn = PodBuiltinFn ["#deferred", null];
+    BuiltinPodFrame:frame = make builtin frame [fn] args: [[$PodVal] []];
+    frame.data = DeferredFrameData [deferred_ctx.fn, null];
+    frame.landing = ErrorLanding [null];
+    [stack.frames].append[frame];
 }
 
 #compile expr [$PodExpr:expr] to [[$VMInstr]:instrs] {

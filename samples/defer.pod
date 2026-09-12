@@ -1,0 +1,23 @@
+{
+    defer {print 3}
+    defer {print 2}
+    print 1
+}
+
+try {
+    defer {print 6}
+    {
+        defer {
+            print 5
+            throw::error quz $nil 7
+        }
+        print 4
+        throw::error bar $nil 8
+    }
+    print foo
+} catch {
+    print::errordata $0
+    print::errordata::errorduring $0
+}
+
+print 9

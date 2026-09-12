@@ -518,6 +518,18 @@ $PodVal??#run misc builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
         };
     }
 
+    ("errorduring") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [ErrorPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        PodError:error = [args[0]#PodError?].unwrap;
+        given error.during as PodError:during {
+            return during;
+        } else {
+            return pod nil;
+        };
+    }
+
     ("repr") {
         require in [stack] between [1] and [1] in [args];
         if stack.active_error {return null#$PodVal?;};

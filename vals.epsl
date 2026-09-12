@@ -75,6 +75,7 @@ PodError {
     Str:type,
     Str?:msg,
     $PodVal?:data,
+    PodError?:during,
     Traceback?:traceback
 }
 

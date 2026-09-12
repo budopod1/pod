@@ -396,7 +396,7 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
             return null#$PodVal?;
         };
 
-        require in [stack] between [3] and [null] in [args];
+        require in [stack] between [2] and [null] in [args];
         require in [stack] [args[1]?] matches [ExactSymbolPattern ["catch"]];
         if stack.active_error {return null#$PodVal?;};
         
@@ -433,6 +433,39 @@ $PodVal??#run flow builtin [BuiltinPodFrame:frame] in [PodStack:stack] lexical: 
             [stack.frames].append[sub_frame];
         };
         return null#$PodVal?;
+    }
+
+    ("#deferred") {
+        DeferredFrameData:data = [frame.data#DeferredFrameData?].unwrap;
+        if frame.recieved {
+            given data.error as PodError:error {
+                [stack].error[error];
+            } else {
+                pop frame in [stack];
+            };
+            return null#$PodVal?;
+        };
+        given [frame].consume_error as PodError:new_error {
+            given data.error as PodError:old_error {
+                new_error.during = old_error;
+                [stack].error[new_error];
+                return null#$PodVal?;
+            };
+            data.error = new_error;
+        };
+        $PodFrame:sub_frame = make frame in [stack]
+            of [data.fn] args: [[$PodVal] []];
+        [stack.frames].append[sub_frame];
+        return null#$PodVal?;
+    }
+
+    ("defer") {
+        require in [stack] between [1] and [1] in [args];
+        require in [stack] [args[0]?] matches [FnPattern []];
+        if stack.active_error {return null#$PodVal?;};
+        $PodFn:fn = [args[0]#$PodFn?].unwrap;
+        [lexical_frame.ctxs].append[DeferredCtx [fn]];
+        return pod nil;
     }
 
     {

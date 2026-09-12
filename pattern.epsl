@@ -133,7 +133,7 @@ Str#[$Pattern:pattern].message {
         };
         return result;
     } given pattern as OptionalPattern:optional_pattern {
-        return "{} or $nil" % [optional_pattern.possibly].stringify;
+        return "{} or $nil" % [optional_pattern.possibly].message;
     } given pattern as OpaquePattern:opaque_pattern {
         return "#{}" % opaque_pattern.type;
     } given pattern as ErrorPattern:error_pattern {

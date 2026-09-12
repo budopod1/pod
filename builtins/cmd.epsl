@@ -40,6 +40,7 @@ Bool#check status [PodProcess:pod_proc] cap: [Str?:cap_name] in [PodStack:stack]
                 "process '{}' exited with status {}"
                     % proc.program % proc.result_status,
                 PodInt [proc.result_status],
+                null,
                 null
             ]];
             return true;

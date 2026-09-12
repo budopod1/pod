@@ -120,6 +120,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "throw",
         "try",
         "fork",
+        "defer",
 
         "mkiter",
         "lenp",
@@ -165,6 +166,7 @@ $PodVal?#builtin cycle of [BuiltinPodFrame:frame] in [PodStack:stack] {
         "errortype",
         "errormsg",
         "errordata",
+        "errorduring",
         "repr",
         "par",
         "rpar",

@@ -33,6 +33,8 @@ FrameCtx {}
         [redirect_ctx].exit stack: [stack];
     } given ctx as ForkChildCtx:child_ctx {
         [child_ctx].exit stack: [stack];
+    } given ctx as DeferredCtx:deferred_ctx {
+        [deferred_ctx].exit stack: [stack];
     } else {
         abort ["Unrecognized frame ctx {}" % ctx];
     };
@@ -160,8 +162,8 @@ RootPodFrame#[PodStack:stack].get_root_frame {
 }
 
 #pop frame in [PodStack:stack] returning [$PodVal:val] {
+    [stack.frames].at[-2].recieved = val;
     pop frame in [stack];
-    [stack.frames].at[-1].recieved = val;
 }
 
 $LexicalPodFrame#top lexical frame in [PodStack:stack] {

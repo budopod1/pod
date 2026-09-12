@@ -42,7 +42,7 @@ Traceback#[PodStack:stack].generate_traceback {
 }
 
 #[PodStack:stack].error[Str:type][Str:msg] {
-    [stack].error[PodError [type, msg, null, null]];
+    [stack].error[PodError [type, msg, null, null, null]];
 }
 
 #display traceback frame [TracebackFrame:frame] {
@@ -82,6 +82,14 @@ Traceback#[PodStack:stack].generate_traceback {
 }
 
 #display error [PodError:error] {
+    given error.during as PodError:during_error {
+        display error [during_error];
+        println[""];
+        println[style [
+            "While handling the above error, another error occured:"
+        ] with [TXT_RED]];
+        println[""];
+    };
     if error.msg && (
         ([error.type] equals ["cmd"]) || ([error.type] equals ["int"])) {
         println[error.msg];
