@@ -137,3 +137,7 @@ A function's arguments are avaliable as an array in the `$@` variable, and the n
 
     # prints '1 + 2 = 3'
     do-add 1 2
+
+# License
+
+Pod is avaliable under the GPLv3. See the `LICENSE` file.
