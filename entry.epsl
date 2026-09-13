@@ -221,7 +221,7 @@ Z#main {
         config,
         "pod",
         "The Pod shell",
-        null,
+        "Run pod with no arguments to start REPL",
         branch,
         default help style
     ];
