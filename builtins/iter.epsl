@@ -870,6 +870,7 @@ $PodVal??#run iter builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
         given frame.data as ReduceFrameData:data {
             if data.ran_body {
                 data.last = [frame.recieved].unwrap;
+                data.ran_body = false;
             };
             $PodVal:iter = data.iter;
             if resolve iter [iter] in [stack] {return null#$PodVal?;};

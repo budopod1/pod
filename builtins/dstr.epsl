@@ -18,7 +18,7 @@ $PodVal??#run dstr builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
     switch builtin.name
     ("push") {
         require in [stack] between [1] and [null] in [args];
-        require in [stack] [args[0]] matches [ArrayPattern []];
+        require in [stack] [args[0]?] matches [ArrayPattern []];
         if stack.active_error {return null#$PodVal?;};
         PodArray:arr = [args[0]#PodArray?].unwrap;
         [arr.elems].extend[[args].slice_from[1]];
@@ -27,7 +27,7 @@ $PodVal??#run dstr builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("put") {
         require in [stack] between [3] and [3] in [args];
-        require in [stack] [args[0]] matches [EitherPattern [[$Pattern] [
+        require in [stack] [args[0]?] matches [EitherPattern [[$Pattern] [
             ArrayPattern [], TablePattern []
         ]]];
         if stack.active_error {return null#$PodVal?;};
@@ -58,7 +58,7 @@ $PodVal??#run dstr builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("pop") {
         require in [stack] between [1] and [2] in [args];
-        require in [stack] [args[0]] matches [EitherPattern [[$Pattern] [
+        require in [stack] [args[0]?] matches [EitherPattern [[$Pattern] [
             ArrayPattern [], TablePattern []
         ]]];
         if stack.active_error {return null#$PodVal?;};
@@ -92,7 +92,7 @@ $PodVal??#run dstr builtin [BuiltinPodFrame:frame] in [PodStack:stack] {
 
     ("insert") {
         require in [stack] between [3] and [3] in [args];
-        require in [stack] [args[0]] matches [ArrayPattern []];
+        require in [stack] [args[0]?] matches [ArrayPattern []];
         if stack.active_error {return null#$PodVal?;};
         PodArray:arr = [args[0]#PodArray?].unwrap;
         Z64:Zi = [args[1]] as int;
